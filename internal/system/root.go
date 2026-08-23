@@ -8,14 +8,14 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/scottzx/minis-context/internal/protocol"
+	"github.com/scottzx/mycontext/internal/protocol"
 )
 
 // MarkerFile names the file that pins a directory tree to a data root.
-const MarkerFile = ".minis-root.json"
+const MarkerFile = ".mycontext-root.json"
 
 // EnvRoot is the environment variable checked during root resolution.
-const EnvRoot = "MINIS_ROOT"
+const EnvRoot = "MYCONTEXT_ROOT"
 
 // Layout describes the on-disk data root (§8.1). Every path is derived from
 // Root so a command can never straddle two instances.
@@ -67,15 +67,16 @@ func ResolveRoot(flagValue string) (string, error) {
 }
 
 // DefaultRoot is the platform fallback. iSH (linux/386) is the first-class
-// target and uses the shared Minis directory.
+// target and uses the Minis phone app's shared directory (B+ design §6.1) —
+// that path is owned by Minis, not by this binary, and is not renamed with it.
 func DefaultRoot() string {
 	if runtime.GOOS == "linux" && runtime.GOARCH == "386" {
 		return "/var/minis/shared"
 	}
 	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".minis")
+		return filepath.Join(home, ".mycontext")
 	}
-	return ".minis"
+	return ".mycontext"
 }
 
 type markerFile struct {

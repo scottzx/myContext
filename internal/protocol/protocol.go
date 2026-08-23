@@ -5,7 +5,7 @@ package protocol
 
 // Version is the wire protocol identifier. Field additions are backwards
 // compatible; removals or semantic changes require a major bump.
-const Version = "minis-cli/v1"
+const Version = "mycontext-cli/v1"
 
 // Exit codes (§11.4).
 const (

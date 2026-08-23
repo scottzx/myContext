@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/scottzx/minis-context/internal/protocol"
+	"github.com/scottzx/mycontext/internal/protocol"
 )
 
 // Migration is one forward-only schema step. Down migrations are deliberately
@@ -34,7 +34,7 @@ type AppliedMigration struct {
 	Checksum  string `json:"checksum"`
 }
 
-// Status is the answer to `minis schema status`.
+// Status is the answer to `mycontext schema status`.
 type Status struct {
 	Database       string             `json:"database"`
 	Path           string             `json:"path"`

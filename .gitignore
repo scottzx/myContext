@@ -1,2 +1,11 @@
 .DS_Store
 *.log
+
+# Build output and generated npm publish tree
+build/
+npm/dist/
+
+# Local instance data must never be committed
+*.db
+*.db-wal
+*.db-shm

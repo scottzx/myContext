@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/scottzx/minis-context/internal/protocol"
+	"github.com/scottzx/mycontext/internal/protocol"
 	_ "modernc.org/sqlite"
 )
 

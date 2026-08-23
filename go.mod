@@ -1,4 +1,4 @@
-module github.com/scottzx/minis-context
+module github.com/scottzx/mycontext
 
 go 1.25.0
 

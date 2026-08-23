@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/scottzx/minis-context/internal/protocol"
+	"github.com/scottzx/mycontext/internal/protocol"
 )
 
 // Config holds non-secret instance settings (§8.3). Credentials never live
@@ -18,10 +18,10 @@ type Config struct {
 	CreatedAt  string `json:"created_at"`
 	CreatedBy  string `json:"created_by_version"`
 
-	// Capacity defaults are used only when a day has no explicit
-	// daily_capacity row; the UI must label such days as "default".
-	DefaultWeekdayMinutes int `json:"default_weekday_minutes"`
-	DefaultWeekendMinutes int `json:"default_weekend_minutes"`
+	// Capacity defaults deliberately do NOT live here: the deterministic
+	// views need to read them, so ops_settings in ops.db is their single
+	// source of truth. Duplicating them in config.json would create a second
+	// version that silently does nothing.
 
 	// JournalMode is decided per instance by `doctor storage` (§13.2) rather
 	// than fixed in the design.
@@ -40,15 +40,13 @@ type PrivacyConfig struct {
 
 func DefaultConfig(instanceID, cliVersion string) Config {
 	return Config{
-		InstanceID:            instanceID,
-		Timezone:              "Asia/Shanghai",
-		Language:              "zh-CN",
-		CreatedAt:             time.Now().UTC().Format(time.RFC3339),
-		CreatedBy:             cliVersion,
-		DefaultWeekdayMinutes: 240,
-		DefaultWeekendMinutes: 120,
-		JournalMode:           "wal",
-		BusyTimeout:           5000,
+		InstanceID:  instanceID,
+		Timezone:    "Asia/Shanghai",
+		Language:    "zh-CN",
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+		CreatedBy:   cliVersion,
+		JournalMode: "wal",
+		BusyTimeout: 5000,
 		Privacy: PrivacyConfig{
 			DefaultSensitivity: "normal",
 			DefaultCloudPolicy: "summary_only",
@@ -60,7 +58,7 @@ func LoadConfig(l Layout) (Config, error) {
 	raw, err := os.ReadFile(l.ConfigPath())
 	if err != nil {
 		if os.IsNotExist(err) {
-			return Config{}, protocol.NotFound("no Minis instance at %s (run `minis init`)", l.Root)
+			return Config{}, protocol.NotFound("no mycontext instance at %s (run `mycontext init`)", l.Root)
 		}
 		return Config{}, protocol.Wrap(err, protocol.CodeIntegrity, "cannot read config")
 	}

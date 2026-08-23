@@ -1,0 +1,961 @@
+{
+  "protocol": "mycontext-cli/v1",
+  "cli_version": "0.1.0-dev",
+  "binary": "mycontext",
+  "global_flags": [
+    {
+      "name": "--actor",
+      "type": "string",
+      "description": "who is acting: user|agent|ui|migration|system",
+      "default": "user"
+    },
+    {
+      "name": "--confirm",
+      "type": "bool",
+      "description": "explicit confirmation for a high-impact action",
+      "default": "false"
+    },
+    {
+      "name": "--dry-run",
+      "type": "bool",
+      "description": "report the change without committing it",
+      "default": "false"
+    },
+    {
+      "name": "--format",
+      "type": "string",
+      "description": "output format: text|json|ndjson",
+      "default": "text"
+    },
+    {
+      "name": "--input",
+      "type": "string",
+      "description": "read the JSON payload from a file, or - for stdin"
+    },
+    {
+      "name": "--no-color",
+      "type": "bool",
+      "description": "disable colour in text output",
+      "default": "false"
+    },
+    {
+      "name": "--reason",
+      "type": "string",
+      "description": "why this change is being made (audited)"
+    },
+    {
+      "name": "--request-id",
+      "type": "string",
+      "description": "idempotency key for retryable writes"
+    },
+    {
+      "name": "--root",
+      "type": "string",
+      "description": "data instance to operate on (overrides MINIS_ROOT)"
+    },
+    {
+      "name": "--timeout",
+      "type": "duration",
+      "description": "upper bound for locks and I/O (default 30s)",
+      "default": "0s"
+    },
+    {
+      "name": "--trace",
+      "type": "bool",
+      "description": "print local diagnostics to stderr",
+      "default": "false"
+    }
+  ],
+  "operations": [
+    {
+      "name": "area.create",
+      "invoke": "mycontext area create <name> [flags]",
+      "summary": "Create an area",
+      "write": true,
+      "arguments": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--sort",
+          "type": "int",
+          "description": "display order",
+          "default": "0"
+        }
+      ]
+    },
+    {
+      "name": "backup.create",
+      "invoke": "mycontext backup create",
+      "summary": "Write a consistent snapshot of ops.db",
+      "long": "Uses SQLite's VACUUM INTO so the snapshot is internally consistent\neven if something is writing; copying a live database file is not safe.",
+      "write": true
+    },
+    {
+      "name": "backup.verify",
+      "invoke": "mycontext backup verify <snapshot-path>",
+      "summary": "Open a snapshot read-only and run integrity checks",
+      "write": false,
+      "arguments": [
+        {
+          "name": "snapshot-path",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "capacity.set",
+      "invoke": "mycontext capacity set <YYYY-MM-DD> <minutes> [flags]",
+      "summary": "Declare how many minutes a day actually has",
+      "write": true,
+      "arguments": [
+        {
+          "name": "YYYY-MM-DD",
+          "required": true
+        },
+        {
+          "name": "minutes",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "why"
+        }
+      ]
+    },
+    {
+      "name": "event.list",
+      "invoke": "mycontext event list [flags]",
+      "summary": "List events, newest first",
+      "write": false,
+      "flags": [
+        {
+          "name": "--entity-id",
+          "type": "string",
+          "description": "specific object"
+        },
+        {
+          "name": "--entity-type",
+          "type": "string",
+          "description": "task|project|area|initiative|capacity"
+        },
+        {
+          "name": "--event-type",
+          "type": "string",
+          "description": "created|rescheduled|status_changed|..."
+        },
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "50"
+        },
+        {
+          "name": "--since",
+          "type": "string",
+          "description": "RFC 3339 lower bound"
+        }
+      ]
+    },
+    {
+      "name": "initiative.create",
+      "invoke": "mycontext initiative create <name> [flags]",
+      "summary": "Create an initiative",
+      "write": true,
+      "arguments": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--area",
+          "type": "string",
+          "description": "area id (required)"
+        },
+        {
+          "name": "--description",
+          "type": "string",
+          "description": "description"
+        },
+        {
+          "name": "--review",
+          "type": "string",
+          "description": "review date, YYYY-MM-DD"
+        },
+        {
+          "name": "--sort",
+          "type": "int",
+          "description": "display order",
+          "default": "0"
+        },
+        {
+          "name": "--start",
+          "type": "string",
+          "description": "start date, YYYY-MM-DD"
+        }
+      ]
+    },
+    {
+      "name": "ops.status",
+      "invoke": "mycontext ops status",
+      "summary": "Today, tomorrow, the week, overdue, reviews and overload",
+      "long": "Reports facts only: counts, planned minutes, available minutes and\noverload. It never reorders your priorities or suggests what to drop.",
+      "write": false
+    },
+    {
+      "name": "project.create",
+      "invoke": "mycontext project create <name> [flags]",
+      "summary": "Create a project",
+      "write": true,
+      "arguments": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--description",
+          "type": "string",
+          "description": "description"
+        },
+        {
+          "name": "--done-when",
+          "type": "string",
+          "description": "completion criteria"
+        },
+        {
+          "name": "--hard-due",
+          "type": "string",
+          "description": "external deadline, RFC 3339"
+        },
+        {
+          "name": "--importance",
+          "type": "string",
+          "description": "P0|P1|P2|P3"
+        },
+        {
+          "name": "--initiative",
+          "type": "string",
+          "description": "initiative id"
+        },
+        {
+          "name": "--outcome",
+          "type": "string",
+          "description": "what this produces"
+        },
+        {
+          "name": "--review",
+          "type": "string",
+          "description": "review date, YYYY-MM-DD"
+        },
+        {
+          "name": "--stage",
+          "type": "string",
+          "description": "discover|plan|build|deliver|operate|close"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "planned|active|waiting|paused"
+        },
+        {
+          "name": "--target-date",
+          "type": "string",
+          "description": "intended completion, YYYY-MM-DD"
+        }
+      ]
+    },
+    {
+      "name": "project.get",
+      "invoke": "mycontext project get <id|search>",
+      "summary": "Show one project and its open tasks",
+      "write": false,
+      "arguments": [
+        {
+          "name": "id|search",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "project.link-kr",
+      "invoke": "mycontext project link-kr <project-id> <key-result-id> [flags]",
+      "summary": "Record that a project contributes to a key result",
+      "write": true,
+      "arguments": [
+        {
+          "name": "project-id",
+          "required": true
+        },
+        {
+          "name": "key-result-id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "how it contributes"
+        }
+      ]
+    },
+    {
+      "name": "project.list",
+      "invoke": "mycontext project list [flags]",
+      "summary": "List projects with open task counts",
+      "write": false,
+      "flags": [
+        {
+          "name": "--area",
+          "type": "string",
+          "description": "area id"
+        },
+        {
+          "name": "--initiative",
+          "type": "string",
+          "description": "initiative id"
+        },
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "200"
+        },
+        {
+          "name": "--open",
+          "type": "bool",
+          "description": "only planned/active/waiting/paused",
+          "default": "false"
+        },
+        {
+          "name": "--search",
+          "type": "string",
+          "description": "match name"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "comma-separated statuses"
+        }
+      ]
+    },
+    {
+      "name": "project.tree",
+      "invoke": "mycontext project tree [flags]",
+      "summary": "Area > Initiative > Project navigation",
+      "write": false,
+      "flags": [
+        {
+          "name": "--all",
+          "type": "bool",
+          "description": "include archived areas and initiatives",
+          "default": "false"
+        }
+      ]
+    },
+    {
+      "name": "project.update",
+      "invoke": "mycontext project update <id> [flags]",
+      "summary": "Patch a project (requires --expected-version)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--description",
+          "type": "string",
+          "description": "new description"
+        },
+        {
+          "name": "--done-when",
+          "type": "string",
+          "description": "completion criteria"
+        },
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--hard-due",
+          "type": "string",
+          "description": "external deadline (requires --reason)"
+        },
+        {
+          "name": "--importance",
+          "type": "string",
+          "description": "P0|P1|P2|P3"
+        },
+        {
+          "name": "--initiative",
+          "type": "string",
+          "description": "move to initiative id"
+        },
+        {
+          "name": "--name",
+          "type": "string",
+          "description": "new name"
+        },
+        {
+          "name": "--outcome",
+          "type": "string",
+          "description": "what this produces"
+        },
+        {
+          "name": "--review",
+          "type": "string",
+          "description": "review date"
+        },
+        {
+          "name": "--stage",
+          "type": "string",
+          "description": "new stage"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "new status"
+        },
+        {
+          "name": "--target-date",
+          "type": "string",
+          "description": "intended completion"
+        }
+      ]
+    },
+    {
+      "name": "schedule.day",
+      "invoke": "mycontext schedule day [YYYY-MM-DD]",
+      "summary": "One day's agenda and load",
+      "write": false,
+      "arguments": [
+        {
+          "name": "YYYY-MM-DD",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "schedule.week",
+      "invoke": "mycontext schedule week [YYYY-MM-DD]",
+      "summary": "Seven days from a start date (default today)",
+      "write": false,
+      "arguments": [
+        {
+          "name": "YYYY-MM-DD",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "schema.migrate",
+      "invoke": "mycontext schema migrate",
+      "summary": "Apply pending migrations after taking a snapshot",
+      "write": true
+    },
+    {
+      "name": "schema.plan",
+      "invoke": "mycontext schema plan",
+      "summary": "Show which migrations would run, without applying them",
+      "write": false
+    },
+    {
+      "name": "schema.status",
+      "invoke": "mycontext schema status",
+      "summary": "Report current and target schema versions",
+      "write": false
+    },
+    {
+      "name": "system.catalog",
+      "invoke": "mycontext catalog [flags]",
+      "summary": "Describe every operation, flag and exit code as JSON",
+      "long": "Emits the machine-readable command contract. An agent reads this\nonce to discover what it can call, instead of hardcoding a command list.",
+      "write": false,
+      "flags": [
+        {
+          "name": "--actor",
+          "type": "string",
+          "description": "who is acting: user|agent|ui|migration|system",
+          "default": "user"
+        },
+        {
+          "name": "--confirm",
+          "type": "bool",
+          "description": "explicit confirmation for a high-impact action",
+          "default": "false"
+        },
+        {
+          "name": "--dry-run",
+          "type": "bool",
+          "description": "report the change without committing it",
+          "default": "false"
+        },
+        {
+          "name": "--format",
+          "type": "string",
+          "description": "output format: text|json|ndjson",
+          "default": "text"
+        },
+        {
+          "name": "--help",
+          "type": "bool",
+          "description": "help for catalog",
+          "default": "false"
+        },
+        {
+          "name": "--input",
+          "type": "string",
+          "description": "read the JSON payload from a file, or - for stdin"
+        },
+        {
+          "name": "--no-color",
+          "type": "bool",
+          "description": "disable colour in text output",
+          "default": "false"
+        },
+        {
+          "name": "--reason",
+          "type": "string",
+          "description": "why this change is being made (audited)"
+        },
+        {
+          "name": "--request-id",
+          "type": "string",
+          "description": "idempotency key for retryable writes"
+        },
+        {
+          "name": "--root",
+          "type": "string",
+          "description": "data instance to operate on (overrides MINIS_ROOT)"
+        },
+        {
+          "name": "--timeout",
+          "type": "duration",
+          "description": "upper bound for locks and I/O (default 30s)",
+          "default": "0s"
+        },
+        {
+          "name": "--trace",
+          "type": "bool",
+          "description": "print local diagnostics to stderr",
+          "default": "false"
+        }
+      ]
+    },
+    {
+      "name": "system.doctor",
+      "invoke": "mycontext doctor",
+      "summary": "Check this instance and report pass/warn/fail per capability",
+      "write": false
+    },
+    {
+      "name": "system.init",
+      "invoke": "mycontext init [flags]",
+      "summary": "Create or report a data instance",
+      "long": "Creates the directory layout and config for a data root.\ninit is idempotent: run against an existing instance it reports the\ncurrent state and changes nothing.",
+      "write": true,
+      "flags": [
+        {
+          "name": "--migrate",
+          "type": "bool",
+          "description": "apply pending schema migrations after creating the instance",
+          "default": "true"
+        }
+      ]
+    },
+    {
+      "name": "system.version",
+      "invoke": "mycontext version",
+      "summary": "Report CLI, build and compatible schema versions",
+      "write": false
+    },
+    {
+      "name": "task.complete",
+      "invoke": "mycontext task complete <id> [flags]",
+      "summary": "Mark a task done",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "closing note"
+        }
+      ]
+    },
+    {
+      "name": "task.create",
+      "invoke": "mycontext task create <title> [flags]",
+      "summary": "Create a task",
+      "write": true,
+      "arguments": [
+        {
+          "name": "title",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--detail",
+          "type": "string",
+          "description": "longer description"
+        },
+        {
+          "name": "--done-when",
+          "type": "string",
+          "description": "completion criteria"
+        },
+        {
+          "name": "--estimate",
+          "type": "int",
+          "description": "estimated minutes",
+          "default": "0"
+        },
+        {
+          "name": "--hard-due",
+          "type": "string",
+          "description": "real deadline, RFC 3339"
+        },
+        {
+          "name": "--importance",
+          "type": "string",
+          "description": "P0|P1|P2|P3"
+        },
+        {
+          "name": "--plan",
+          "type": "string",
+          "description": "planned date, YYYY-MM-DD"
+        },
+        {
+          "name": "--plan-minutes",
+          "type": "int",
+          "description": "minutes reserved on the planned day",
+          "default": "0"
+        },
+        {
+          "name": "--project",
+          "type": "string",
+          "description": "project id"
+        },
+        {
+          "name": "--review",
+          "type": "string",
+          "description": "review date, YYYY-MM-DD"
+        },
+        {
+          "name": "--slot",
+          "type": "string",
+          "description": "morning|afternoon|evening"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "inbox|todo|doing|waiting"
+        },
+        {
+          "name": "--waiting-for",
+          "type": "string",
+          "description": "person or condition being waited on"
+        }
+      ]
+    },
+    {
+      "name": "task.get",
+      "invoke": "mycontext task get <id|search>",
+      "summary": "Show one task; a search matching several returns the candidates",
+      "write": false,
+      "arguments": [
+        {
+          "name": "id|search",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "task.list",
+      "invoke": "mycontext task list [flags]",
+      "summary": "List tasks",
+      "write": false,
+      "flags": [
+        {
+          "name": "--date",
+          "type": "string",
+          "description": "planned for this YYYY-MM-DD"
+        },
+        {
+          "name": "--importance",
+          "type": "string",
+          "description": "comma-separated P0..P3"
+        },
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "100"
+        },
+        {
+          "name": "--offset",
+          "type": "int",
+          "description": "rows to skip",
+          "default": "0"
+        },
+        {
+          "name": "--open",
+          "type": "bool",
+          "description": "exclude done/cancelled/archived",
+          "default": "false"
+        },
+        {
+          "name": "--project",
+          "type": "string",
+          "description": "project id"
+        },
+        {
+          "name": "--search",
+          "type": "string",
+          "description": "match title or detail"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "comma-separated statuses"
+        },
+        {
+          "name": "--unscheduled",
+          "type": "bool",
+          "description": "only tasks with no active plan",
+          "default": "false"
+        }
+      ]
+    },
+    {
+      "name": "task.reschedule",
+      "invoke": "mycontext task reschedule <id> <YYYY-MM-DD> [flags]",
+      "summary": "Move a task to another day, keeping the old plan in history",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        },
+        {
+          "name": "YYYY-MM-DD",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note stored on the new schedule"
+        },
+        {
+          "name": "--plan-minutes",
+          "type": "int",
+          "description": "minutes reserved on the new day",
+          "default": "0"
+        },
+        {
+          "name": "--slot",
+          "type": "string",
+          "description": "morning|afternoon|evening"
+        }
+      ]
+    },
+    {
+      "name": "task.set-review",
+      "invoke": "mycontext task set-review <id> <YYYY-MM-DD> [flags]",
+      "summary": "Park a task until a date; it leaves today but never disappears",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        },
+        {
+          "name": "YYYY-MM-DD",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "new status, e.g. waiting"
+        },
+        {
+          "name": "--waiting-for",
+          "type": "string",
+          "description": "person or condition"
+        }
+      ]
+    },
+    {
+      "name": "task.update",
+      "invoke": "mycontext task update <id> [flags]",
+      "summary": "Patch a task (requires --expected-version)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--detail",
+          "type": "string",
+          "description": "new detail"
+        },
+        {
+          "name": "--done-when",
+          "type": "string",
+          "description": "completion criteria"
+        },
+        {
+          "name": "--estimate",
+          "type": "int",
+          "description": "estimated minutes",
+          "default": "-1"
+        },
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--hard-due",
+          "type": "string",
+          "description": "change the real deadline (requires --reason)"
+        },
+        {
+          "name": "--importance",
+          "type": "string",
+          "description": "P0|P1|P2|P3"
+        },
+        {
+          "name": "--project",
+          "type": "string",
+          "description": "move to project id"
+        },
+        {
+          "name": "--review",
+          "type": "string",
+          "description": "review date, YYYY-MM-DD"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "new status"
+        },
+        {
+          "name": "--title",
+          "type": "string",
+          "description": "new title"
+        },
+        {
+          "name": "--waiting-for",
+          "type": "string",
+          "description": "person or condition"
+        }
+      ]
+    }
+  ],
+  "exit_codes": [
+    {
+      "code": 0,
+      "meaning": "success"
+    },
+    {
+      "code": 2,
+      "meaning": "invalid arguments or input"
+    },
+    {
+      "code": 3,
+      "meaning": "object does not exist"
+    },
+    {
+      "code": 4,
+      "meaning": "ambiguous match, version conflict or idempotency conflict"
+    },
+    {
+      "code": 5,
+      "meaning": "CLI and database schema are incompatible"
+    },
+    {
+      "code": 6,
+      "meaning": "database busy or lock timeout"
+    },
+    {
+      "code": 7,
+      "meaning": "permission, privacy policy or missing confirmation"
+    },
+    {
+      "code": 8,
+      "meaning": "integrity check failed"
+    },
+    {
+      "code": 9,
+      "meaning": "external network or source fetch failed"
+    },
+    {
+      "code": 10,
+      "meaning": "operation did not finish; recovery required"
+    }
+  ],
+  "envelope": {
+    "success_shape": "{\"protocol\",\"ok\":true,\"command\",\"request_id\",\"data\",\"changes\",\"warnings\",\"meta\"}",
+    "failure_shape": "{\"protocol\",\"ok\":false,\"command\",\"error\":{\"code\",\"message\",\"details\",\"retryable\"},\"meta\"}",
+    "notes": [
+      "Branch on exit code and error.code, never on error.message text.",
+      "stdout carries only the payload; diagnostics go to stderr.",
+      "Timestamps are RFC 3339 with a timezone; calendar days are YYYY-MM-DD.",
+      "IDs are always strings.",
+      "changes[].projection_keys name the read models a write invalidated."
+    ]
+  }
+}
