@@ -33,6 +33,12 @@ jobs:
           node-version: "24"
           registry-url: https://registry.npmjs.org
 
+      - name: Derive VERSION from npm/universal/package.json
+        run: |
+          v="$(node -p "require('./npm/universal/package.json').version")"
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+          echo "publishing version: $v"
+
       - name: Build all platform binaries and assemble npm packages
         run: make npm
 
@@ -44,6 +50,15 @@ jobs:
           done
           node -p "require('./npm/dist/mycontext/package.json').name" | grep -qx "@1agents/mycontext" \
             || { echo "ERROR: universal package name mismatch" >&2; exit 1; }
+
+          # The binary's own self-reported version must match what npm is
+          # about to publish — otherwise `mycontext version` lies about what
+          # you actually installed.
+          reported="$(./build/mycontext version --format json | node -p 'JSON.parse(require("fs").readFileSync(0)).data.cli_version')"
+          if [ "$reported" != "$VERSION" ]; then
+            echo "ERROR: binary reports version $reported but npm package is $VERSION" >&2
+            exit 1
+          fi
 
       - name: npm whoami (auth check)
         env:

@@ -1,6 +1,6 @@
 {
   "name": "@1agents/mycontext",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "个人经营上下文系统 — deterministic local CLI for agent runtimes",
   "keywords": [
     "cli",
@@ -26,10 +26,10 @@
     "node": ">=16"
   },
   "optionalDependencies": {
-    "@1agents/mycontext-darwin-arm64": "0.1.0",
-    "@1agents/mycontext-darwin-x64": "0.1.0",
-    "@1agents/mycontext-linux-ia32": "0.1.0",
-    "@1agents/mycontext-linux-x64": "0.1.0",
-    "@1agents/mycontext-linux-arm64": "0.1.0"
+    "@1agents/mycontext-darwin-arm64": "0.2.0",
+    "@1agents/mycontext-darwin-x64": "0.2.0",
+    "@1agents/mycontext-linux-ia32": "0.2.0",
+    "@1agents/mycontext-linux-x64": "0.2.0",
+    "@1agents/mycontext-linux-arm64": "0.2.0"
   }
 }
