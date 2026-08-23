@@ -1,0 +1,89 @@
+name: npm publish
+
+# Publishes @1agents/mycontext + its platform packages to npm. Manual only —
+# a published version cannot be unpublished/republished, so this never runs
+# on push. Defaults to a dry run so wiring (auth, packing, package names) can
+# be verified before anything actually goes to the registry.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "npm publish --dry-run (no real publish; verifies auth and packing)"
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      - name: Build all platform binaries and assemble npm packages
+        run: make npm
+
+      - name: Sanity check — every platform package has its binary
+        run: |
+          set -euo pipefail
+          for p in npm/dist/mycontext-*; do
+            find "$p/bin" -type f | grep -q . || { echo "ERROR: $p has no binary" >&2; exit 1; }
+          done
+          node -p "require('./npm/dist/mycontext/package.json').name" | grep -qx "@1agents/mycontext" \
+            || { echo "ERROR: universal package name mismatch" >&2; exit 1; }
+
+      - name: npm whoami (auth check)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "ERROR: NPM_TOKEN secret is not set on this repo." >&2
+            exit 1
+          fi
+          npm whoami
+
+      - name: Publish platform packages, then the universal package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          DRY=()
+          if [ "${{ inputs.dry_run }}" = "true" ]; then DRY=(--dry-run); fi
+
+          publish_one() {
+            local dir="$1"
+            local name version
+            name="$(node -p "require('$dir/package.json').name")"
+            version="$(node -p "require('$dir/package.json').version")"
+            echo "=== publishing ${name}@${version} ${DRY[*]:-}"
+            ( cd "$dir" && npm publish --access public --ignore-scripts "${DRY[@]}" )
+          }
+
+          # Platform (leaf) packages first, so the universal package's
+          # optionalDependencies always resolve to something that exists.
+          for p in npm/dist/mycontext-darwin-arm64 npm/dist/mycontext-darwin-x64 \
+                   npm/dist/mycontext-linux-ia32 npm/dist/mycontext-linux-x64 \
+                   npm/dist/mycontext-linux-arm64; do
+            publish_one "$p"
+          done
+          publish_one npm/dist/mycontext
+
+          echo ""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "Dry run complete — nothing was actually published."
+          else
+            echo "Published. Install with: npm install -g @1agents/mycontext"
+          fi
