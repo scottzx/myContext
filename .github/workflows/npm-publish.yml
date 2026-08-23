@@ -66,8 +66,10 @@ jobs:
           publish_one() {
             local dir="$1"
             local name version
-            name="$(node -p "require('$dir/package.json').name")"
-            version="$(node -p "require('$dir/package.json').version")"
+            # require() treats a bare path (no leading ./) as a node_modules
+            # lookup, not a filesystem path — hence the explicit ./ here.
+            name="$(node -p "require('./$dir/package.json').name")"
+            version="$(node -p "require('./$dir/package.json').version")"
             echo "=== publishing ${name}@${version} ${DRY[*]:-}"
             ( cd "$dir" && npm publish --access public --ignore-scripts "${DRY[@]}" )
           }
