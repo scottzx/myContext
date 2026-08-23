@@ -10,9 +10,10 @@ Go 实现的本地 CLI，对应两份设计文档：
 
 ## 当前实现范围
 
-已完成技术分册的 **Phase 1（只读 CLI 骨架）**、**Phase 2（`ops.db v2` 与写入协议）**
-与 **Phase 5（npm 分发）**，以及 agent 接入层。
-Library capture、`context.db` 与静态前端尚未开始，见文末。
+已完成技术分册的 **Phase 1（只读 CLI 骨架）**、**Phase 2（`ops.db v2` 与写入协议）**、
+**Phase 5（npm 分发）**，以及 agent 接入层；**Phase 4 静态前端仅完成 localhost adapter**
+（只读，`mycontext ui serve`）。Snapshot / Minis Bridge 两种 adapter、Library capture、
+`context.db` 尚未开始，见文末。
 
 ## 快速开始
 
@@ -40,6 +41,7 @@ make build
 | `capacity set` | 声明某天可用分钟 |
 | `event list` | 审计轨迹 |
 | `catalog` | 输出机器可读的操作目录，供 agent 发现能力 |
+| `ui serve` | 本地只读 dashboard（127.0.0.1，随机端口，前台运行） |
 
 ## 作为 agent 插件使用
 
@@ -120,6 +122,30 @@ MYCONTEXT_ROOT/
 根目录解析顺序：`--root` → `MYCONTEXT_ROOT` → 向上查找 `.mycontext-root.json` → 平台默认
 （iSH 为 `/var/minis/shared`）。每条结果的 `meta.root` 都会回报实际使用的实例。
 
+## 本地 Web UI（localhost adapter）
+
+```bash
+mycontext ui serve
+```
+
+绑死 `127.0.0.1` 上的随机端口（技术分册 §16.3：`不监听局域网地址`），打印带一次性
+session token 的 URL。前端首次加载时从 URL 读 token、从地址栏抹掉，之后所有请求
+走自定义 header `X-Mycontext-Token` 携带；服务端同时校验 Origin/Host，拒绝跨源请求。
+
+前台运行，Ctrl-C 或空闲超时（默认 30 分钟，`--idle-timeout` 可调）即退出——不是
+daemon。只读：这一轮只暴露 `ops.status`、`project.tree` 两个白名单查询操作
+（technical §16.1：`不为每张数据库表建立 CRUD HTTP API，也不提供通用 SQL endpoint`），
+没有写入端点。
+
+前端是 `web/` 下的 Vite + React + TypeScript 静态站点，构建产物通过 `//go:embed`
+打进二进制（`make web` 生成 `web/dist`，`make build` 自动依赖它）；仓库里只提交一个
+占位 `web/dist/index.html`，保证裸 `go build`/`go vet`/`go test` 不依赖 Node 也能过——
+embed 目录必须存在且非空，这是唯一原因。
+
+DataSource 契约（`web/src/datasource.ts`）是这一层唯一的耦合面：组件只调用
+`query(operation, input)`，不知道数据经由 localhost 还是（以后的）Snapshot/Bridge
+传输。换 adapter 只需新写一个实现同一接口的文件。
+
 ## 构建
 
 ```bash
@@ -135,9 +161,12 @@ CGo-free，任意宿主可交叉编译全部首批平台；`linux/386`（iSH）�
 - **Phase 3 Library Capture** — Capture Package / Item / Version / Component / Asset、
   manifest、staging→sealed 可恢复提交与崩溃恢复矩阵
 - **`context.db`** — sources、inbox_items、entities、facts、evidence、domain_links
-- **Phase 4 静态前端** — Snapshot / localhost / Minis Bridge 三种 adapter
+- **Phase 4 静态前端** — Snapshot / Minis Bridge 两种 adapter（localhost 已完成，见上）；
+  写入未开放（B+ 设计：先只读，再单任务改期，最后批量/agent 写入）
 - **Phase 6 迁移** — 旧 `tasks.db/nodes` 到 `ops.db v2` 的映射与逐条对账
-- `mycontext ui serve|export`、`mycontext verify`
-- npm 包尚未真正发布，也未在真实 iSH 上安装验证
+- `mycontext ui export`、`mycontext verify`
+- `ui serve` 页面还没有在真实浏览器里做过可视化验证（本机 Chrome 扩展未连接，
+  只验证到 API/HTML/TS 编译层面）
+- 未在真实 iSH 上安装验证（npm 包已发布：`npm install -g @1agents/mycontext`）
 
 Phase 0（真实 iSH 设备资格确认与基准）需要在真机上执行，尚未进行。

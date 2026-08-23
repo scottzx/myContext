@@ -52,6 +52,7 @@ func Execute(args []string) int {
 		newScheduleCmd(opts),
 		newCapacityCmd(opts),
 		newEventCmd(opts),
+		newUICmd(opts),
 	)
 	// Registered last: it describes the tree that now exists.
 	root.AddCommand(newCatalogCmd(opts, root))

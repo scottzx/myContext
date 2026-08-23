@@ -4,6 +4,8 @@
 # Build output and generated npm publish tree
 build/
 npm/dist/
+web/node_modules/
+web/tsconfig.tsbuildinfo
 
 # Local instance data must never be committed
 *.db

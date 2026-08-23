@@ -19,7 +19,9 @@ PLATFORMS   := linux/386 darwin/arm64 darwin/amd64 linux/amd64 linux/arm64
 
 .PHONY: help
 help:
-	@echo "make build      Build $(BINARY) for the host"
+	@echo "make build      Build the frontend, then $(BINARY) for the host"
+	@echo "make build-noweb  Build $(BINARY) only, against the existing web/dist"
+	@echo "make web        Build the frontend into web/dist"
 	@echo "make test       Run the full test suite"
 	@echo "make check      Vet, build and test"
 	@echo "make release    Cross-compile every first-stage platform into $(BUILD_DIR)/"
@@ -29,8 +31,19 @@ help:
 	@echo "make npm        Assemble the npm publish tree into npm/dist/"
 	@echo "make clean      Remove build output"
 
+.PHONY: web
+web:
+	cd web && npm install --no-audit --no-fund && npm run build
+
 .PHONY: build
-build:
+build: web
+	CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY) $(PKG)
+
+# Rebuilds the Go binary against whatever is already in web/dist, without
+# reinstalling npm deps or rebuilding the frontend. Useful when iterating on
+# Go code only.
+.PHONY: build-noweb
+build-noweb:
 	CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY) $(PKG)
 
 .PHONY: test
@@ -38,7 +51,7 @@ test:
 	go test ./...
 
 .PHONY: check
-check:
+check: web
 	go vet ./...
 	CGO_ENABLED=0 go build ./...
 	go test ./...
@@ -49,7 +62,7 @@ ish:
 		-o $(BUILD_DIR)/$(BINARY)-linux-386 $(PKG)
 
 .PHONY: release
-release:
+release: web
 	@mkdir -p $(BUILD_DIR)
 	@for platform in $(PLATFORMS); do \
 		os=$${platform%%/*}; arch=$${platform##*/}; \
@@ -83,4 +96,4 @@ checksums:
 
 .PHONY: clean
 clean:
-	rm -rf $(BUILD_DIR) npm/dist
+	rm -rf $(BUILD_DIR) npm/dist web/dist web/node_modules
