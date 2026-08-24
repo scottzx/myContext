@@ -69,14 +69,16 @@ func ResolveRoot(flagValue string) (string, error) {
 // DefaultRoot is the platform fallback. iSH (linux/386) is the first-class
 // target and uses the Minis phone app's shared directory (B+ design §6.1) —
 // that path is owned by Minis, not by this binary, and is not renamed with it.
+// Desktop platforms nest under ~/.1agents, the shared local-data namespace
+// for the whole @1agents product family, rather than a bare dotfile in $HOME.
 func DefaultRoot() string {
 	if runtime.GOOS == "linux" && runtime.GOARCH == "386" {
 		return "/var/minis/shared"
 	}
 	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".mycontext")
+		return filepath.Join(home, ".1agents", "mycontext")
 	}
-	return ".mycontext"
+	return filepath.Join(".1agents", "mycontext")
 }
 
 type markerFile struct {

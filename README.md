@@ -120,7 +120,9 @@ MYCONTEXT_ROOT/
 ```
 
 根目录解析顺序：`--root` → `MYCONTEXT_ROOT` → 向上查找 `.mycontext-root.json` → 平台默认
-（iSH 为 `/var/minis/shared`）。每条结果的 `meta.root` 都会回报实际使用的实例。
+（iSH 为 `/var/minis/shared`，桌面平台为 `~/.1agents/mycontext`——挂在 `@1agents`
+产品族共享的本地数据命名空间下，不是裸的 `~/.mycontext` dotfile）。每条结果的
+`meta.root` 都会回报实际使用的实例。
 
 ## 本地 Web UI（localhost adapter）
 
@@ -136,6 +138,34 @@ session token 的 URL。前端首次加载时从 URL 读 token、从地址栏抹
 daemon。只读：这一轮只暴露 `ops.status`、`project.tree` 两个白名单查询操作
 （technical §16.1：`不为每张数据库表建立 CRUD HTTP API，也不提供通用 SQL endpoint`），
 没有写入端点。
+
+### API 契约（给要直接调 HTTP 接口的人，不是给 agent 的——见下）
+
+真实调用示例，几个容易踩的点直接摊开写：
+
+```bash
+curl -H "X-Mycontext-Token: <token>" \
+     -H "Content-Type: application/json" \
+     -d '{"operation":"ops.status","input":{}}' \
+     http://127.0.0.1:<port>/api/v1/invoke
+```
+
+- **`operation` 用点号规范名**（`ops.status`、`project.tree`），**不是** CLI 的空格子命令
+  形式（`ops status`）。两者是同一操作的两种表示，不能互换——点号名来自
+  `mycontext catalog` 输出的 `name` 字段，命令行输入的是 `Use` 里的空格形式。
+- **鉴权走 `X-Mycontext-Token` header，不是 query string。** 启动时打印的
+  `http://127.0.0.1:PORT/?token=xxx` 里那个 `token` 只是给浏览器首次打开用的
+  一次性引导值——前端 JS 读到后立刻从地址栏 `history.replaceState` 抹掉（见下），
+  之后所有 `/api/v1/*` 请求全部走 header。**直接拿 URL 里的 token 去拼 query 参数
+  发请求是不认的**，服务端只认 header。
+- **当前 capabilities 只有这两个只读操作，没有更多。** `task`/`project` 的写操作、
+  `backup`、`schema migrate` 等命令都没有暴露到这个 HTTP 接口，也不打算在这一轮加——
+  写操作走 CLI（人或 agent 直接调 `mycontext ...`），UI 这边保持"只读展示"，两条路
+  分工明确，不是漏做了忘加。`GET /api/v1/capabilities` 会如实报告当前只有
+  `["ops.status", "project.tree"]`，别假设还有别的操作能调。
+
+**agent 不需要、也不应该调这个 HTTP 接口** ——agent 的调用契约是 CLI（见
+[`agent/USAGE.md`](agent/USAGE.md)），这个 API 是给浏览器前端用的本地传输层。
 
 前端是 `web/` 下的 Vite + React + TypeScript 静态站点，构建产物通过 `//go:embed`
 打进二进制（`make web` 生成 `web/dist`，`make build` 自动依赖它）；仓库里只提交一个
