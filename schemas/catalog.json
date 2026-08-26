@@ -1,6 +1,6 @@
 {
   "protocol": "mycontext-cli/v1",
-  "cli_version": "0.4.0",
+  "cli_version": "0.1.0-dev",
   "binary": "mycontext",
   "global_flags": [
     {
@@ -577,6 +577,120 @@
       "write": false
     },
     {
+      "name": "campaign.close",
+      "invoke": "mycontext campaign close <id> [flags]",
+      "summary": "Mark a campaign ended (requires --expected-version and a start_date already set)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--end",
+          "type": "string",
+          "description": "end date, YYYY-MM-DD (default today)"
+        },
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        }
+      ]
+    },
+    {
+      "name": "campaign.create",
+      "invoke": "mycontext campaign create <name> [flags]",
+      "summary": "Record a promotion push",
+      "write": true,
+      "arguments": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--budget",
+          "type": "float64",
+          "description": "planned spend",
+          "default": "0"
+        },
+        {
+          "name": "--channel-type",
+          "type": "string",
+          "description": "online|offline (default online)"
+        },
+        {
+          "name": "--end",
+          "type": "string",
+          "description": "end date, YYYY-MM-DD"
+        },
+        {
+          "name": "--legacy-ref",
+          "type": "string",
+          "description": "reference into the legacy data source"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--owner",
+          "type": "string",
+          "description": "who owns this push"
+        },
+        {
+          "name": "--product",
+          "type": "string",
+          "description": "product id this push promotes"
+        },
+        {
+          "name": "--start",
+          "type": "string",
+          "description": "start date, YYYY-MM-DD"
+        }
+      ]
+    },
+    {
+      "name": "campaign.list",
+      "invoke": "mycontext campaign list [flags]",
+      "summary": "List campaigns, most recently updated first",
+      "write": false,
+      "flags": [
+        {
+          "name": "--channel-type",
+          "type": "string",
+          "description": "filter by channel_type"
+        },
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "200"
+        },
+        {
+          "name": "--product",
+          "type": "string",
+          "description": "filter by product id"
+        },
+        {
+          "name": "--search",
+          "type": "string",
+          "description": "match name"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "filter by status"
+        }
+      ]
+    },
+    {
       "name": "capacity.set",
       "invoke": "mycontext capacity set <YYYY-MM-DD> <minutes> [flags]",
       "summary": "Declare how many minutes a day actually has",
@@ -596,6 +710,129 @@
           "name": "--note",
           "type": "string",
           "description": "why"
+        }
+      ]
+    },
+    {
+      "name": "channel.create",
+      "invoke": "mycontext channel create <name> [flags]",
+      "summary": "Register one of our own publishing accounts",
+      "write": true,
+      "arguments": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--handle",
+          "type": "string",
+          "description": "the account id on that platform"
+        },
+        {
+          "name": "--legacy-ref",
+          "type": "string",
+          "description": "reference into the legacy data source"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--owner",
+          "type": "string",
+          "description": "who runs this account"
+        },
+        {
+          "name": "--platform",
+          "type": "string",
+          "description": "xiaohongshu|wechat|douyin|bilibili|x|offline (required)"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "active|paused|archived (default active)"
+        }
+      ]
+    },
+    {
+      "name": "channel.list",
+      "invoke": "mycontext channel list [flags]",
+      "summary": "List channels, most recently updated first",
+      "write": false,
+      "flags": [
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "200"
+        },
+        {
+          "name": "--platform",
+          "type": "string",
+          "description": "filter by platform"
+        },
+        {
+          "name": "--search",
+          "type": "string",
+          "description": "match name"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "filter by status"
+        }
+      ]
+    },
+    {
+      "name": "channel.update",
+      "invoke": "mycontext channel update <id> [flags]",
+      "summary": "Patch a channel (requires --expected-version)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--handle",
+          "type": "string",
+          "description": "the account id on that platform"
+        },
+        {
+          "name": "--name",
+          "type": "string",
+          "description": "new name"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--owner",
+          "type": "string",
+          "description": "who runs this account"
+        },
+        {
+          "name": "--platform",
+          "type": "string",
+          "description": "xiaohongshu|wechat|douyin|bilibili|x|offline"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "active|paused|archived"
         }
       ]
     },
@@ -761,6 +998,189 @@
           "name": "--wechat",
           "type": "string",
           "description": "wechat id"
+        }
+      ]
+    },
+    {
+      "name": "content.create",
+      "invoke": "mycontext content create <title> [flags]",
+      "summary": "Record a 选题: a new piece starts at status=idea",
+      "write": true,
+      "arguments": [
+        {
+          "name": "title",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--campaign",
+          "type": "string",
+          "description": "campaign id this piece belongs to"
+        },
+        {
+          "name": "--channel",
+          "type": "string",
+          "description": "channel id, if one is already decided"
+        },
+        {
+          "name": "--legacy-ref",
+          "type": "string",
+          "description": "reference into the legacy data source"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--owner",
+          "type": "string",
+          "description": "who is writing this"
+        },
+        {
+          "name": "--product",
+          "type": "string",
+          "description": "product id this piece promotes"
+        },
+        {
+          "name": "--topic",
+          "type": "string",
+          "description": "the angle, in the writer's words"
+        }
+      ]
+    },
+    {
+      "name": "content.list",
+      "invoke": "mycontext content list [flags]",
+      "summary": "List content pieces, most recently updated first",
+      "write": false,
+      "flags": [
+        {
+          "name": "--campaign",
+          "type": "string",
+          "description": "filter by campaign id"
+        },
+        {
+          "name": "--channel",
+          "type": "string",
+          "description": "filter by channel id"
+        },
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "200"
+        },
+        {
+          "name": "--product",
+          "type": "string",
+          "description": "filter by product id"
+        },
+        {
+          "name": "--search",
+          "type": "string",
+          "description": "match title"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "filter by status"
+        }
+      ]
+    },
+    {
+      "name": "content.publish",
+      "invoke": "mycontext content publish <id> [flags]",
+      "summary": "Publish a content piece: sets published_at and the url",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--at",
+          "type": "string",
+          "description": "when it was published, RFC 3339 (default now)"
+        },
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--url",
+          "type": "string",
+          "description": "the public URL of the published piece"
+        }
+      ]
+    },
+    {
+      "name": "content.update",
+      "invoke": "mycontext content update <id> [flags]",
+      "summary": "Patch a content piece (requires --expected-version; use `content publish` to publish)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--campaign",
+          "type": "string",
+          "description": "campaign id this piece belongs to"
+        },
+        {
+          "name": "--channel",
+          "type": "string",
+          "description": "channel id"
+        },
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--owner",
+          "type": "string",
+          "description": "who is writing this"
+        },
+        {
+          "name": "--product",
+          "type": "string",
+          "description": "product id this piece promotes"
+        },
+        {
+          "name": "--scheduled-for",
+          "type": "string",
+          "description": "when it is scheduled to publish, RFC 3339"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "idea|drafting|review|scheduled|archived (published goes through `content publish`)"
+        },
+        {
+          "name": "--title",
+          "type": "string",
+          "description": "new title"
+        },
+        {
+          "name": "--topic",
+          "type": "string",
+          "description": "the angle, in the writer's words"
         }
       ]
     },
@@ -1106,7 +1526,8 @@
     {
       "name": "doc.add",
       "invoke": "mycontext doc add <title> [flags]",
-      "summary": "Record a document and optionally index its text",
+      "summary": "Capture a file into the library and record a document for it",
+      "long": "Capture a file into the library and record a document for it.\n\n--file names a real file anywhere on disk; it is copied into the library\nthrough the recoverable commit (stage, hash, immutable manifest, atomic\nrename, seal - technical design §15), so the bytes end up under\nlibrary/YYYY/MM/DD because this command put them there, not because they\nwere pre-placed. --rendition and --attachment (repeatable) capture extra\nfiles alongside it in the same commit, for cases like an .html original\nwith a .pdf rendition.\n\n--path instead registers a file that is already inside the library at a\nknown relative path; it does not copy anything and cannot be combined\nwith --file/--rendition/--attachment.",
       "write": true,
       "arguments": [
         {
@@ -1115,6 +1536,12 @@
         }
       ],
       "flags": [
+        {
+          "name": "--attachment",
+          "type": "stringArray",
+          "description": "path to a supporting file to capture alongside the document; repeatable",
+          "default": "[]"
+        },
         {
           "name": "--author",
           "type": "string",
@@ -1136,9 +1563,14 @@
           "description": "what changed in this version"
         },
         {
+          "name": "--file",
+          "type": "string",
+          "description": "path to a real file to capture into the library as the original"
+        },
+        {
           "name": "--file-role",
           "type": "string",
-          "description": "original|rendition|attachment"
+          "description": "original|rendition|attachment (legacy --path only)"
         },
         {
           "name": "--kind",
@@ -1148,7 +1580,7 @@
         {
           "name": "--mime",
           "type": "string",
-          "description": "MIME type of the original"
+          "description": "MIME type of the original (legacy --path only)"
         },
         {
           "name": "--note",
@@ -1163,7 +1595,13 @@
         {
           "name": "--path",
           "type": "string",
-          "description": "path of the original file, relative to the library root"
+          "description": "legacy: rel_path of a file already inside the library"
+        },
+        {
+          "name": "--rendition",
+          "type": "stringArray",
+          "description": "path to an additional rendition of the same document (e.g. a PDF export of an HTML original); repeatable",
+          "default": "[]"
         },
         {
           "name": "--review",
@@ -1173,7 +1611,7 @@
         {
           "name": "--sha256",
           "type": "string",
-          "description": "sha256 of the original bytes"
+          "description": "sha256 of the original bytes (legacy --path only)"
         },
         {
           "name": "--source",
@@ -1545,6 +1983,13 @@
           "default": "0"
         }
       ]
+    },
+    {
+      "name": "library.verify",
+      "invoke": "mycontext library verify",
+      "summary": "Reconcile the Library's journal against what is actually on disk",
+      "long": "Reconciles library_packages against the filesystem, resolving every row of\nthe §15.2 crash-recovery matrix: an interrupted commit is validated and\ncompleted (sealed), a staged package with no journal record is moved aside\nas orphaned, a corrupt manifest or asset is quarantined, and a journal\nentry whose files are simply gone is reported as an integrity error.\n\nThis never fabricates a missing file and never deletes a user's file - the\nworst it does is move a package's own folder under library/_system/, which\nstays fully recoverable.",
+      "write": false
     },
     {
       "name": "metric.record",
@@ -2659,6 +3104,89 @@
           "type": "bool",
           "description": "with --aging, only instalments already past due (v_receivable_overdue)",
           "default": "false"
+        }
+      ]
+    },
+    {
+      "name": "release.create",
+      "invoke": "mycontext release create <version-label> [flags]",
+      "summary": "Record a planned or in-progress version (use `release ship` to mark it released)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "version-label",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--legacy-ref",
+          "type": "string",
+          "description": "reference into the legacy data source"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--product",
+          "type": "string",
+          "description": "product id (required)"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "planned|developing (default planned)"
+        }
+      ]
+    },
+    {
+      "name": "release.list",
+      "invoke": "mycontext release list [flags]",
+      "summary": "List releases, newest first",
+      "write": false,
+      "flags": [
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "200"
+        },
+        {
+          "name": "--product",
+          "type": "string",
+          "description": "filter by product id"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "filter by status"
+        }
+      ]
+    },
+    {
+      "name": "release.ship",
+      "invoke": "mycontext release ship <id> [flags]",
+      "summary": "Mark a release shipped (requires --expected-version)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--at",
+          "type": "string",
+          "description": "when it was released, RFC 3339 (default now)"
+        },
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
         }
       ]
     },
