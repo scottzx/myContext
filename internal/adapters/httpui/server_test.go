@@ -159,6 +159,54 @@ func TestInvokeOpsStatus(t *testing.T) {
 	}
 }
 
+// TestInvokeEveryWhitelistedOperation asserts every operation the
+// capabilities endpoint advertises is actually reachable through invoke and
+// returns ok:true against a freshly migrated (empty) ops.db - an empty list
+// is a correct read-only answer, a 500 is not.
+func TestInvokeEveryWhitelistedOperation(t *testing.T) {
+	ts, token := newTestServer(t)
+
+	capReq, _ := http.NewRequest("GET", ts.URL+"/api/v1/capabilities", nil)
+	capReq.Header.Set("X-Mycontext-Token", token)
+	capResp, err := http.DefaultClient.Do(capReq)
+	if err != nil {
+		t.Fatalf("capabilities: %v", err)
+	}
+	var caps struct {
+		Operations []string `json:"operations"`
+	}
+	if err := json.NewDecoder(capResp.Body).Decode(&caps); err != nil {
+		t.Fatalf("decode capabilities: %v", err)
+	}
+	if len(caps.Operations) == 0 {
+		t.Fatal("capabilities lists no operations")
+	}
+
+	for _, op := range caps.Operations {
+		t.Run(op, func(t *testing.T) {
+			body, _ := json.Marshal(map[string]any{"operation": op, "input": map[string]any{}})
+			req, _ := http.NewRequest("POST", ts.URL+"/api/v1/invoke", bytes.NewReader(body))
+			req.Header.Set("X-Mycontext-Token", token)
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatalf("post: %v", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status %d, want 200", resp.StatusCode)
+			}
+			var env protocol.Envelope
+			if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if !env.OK {
+				t.Fatalf("operation %q did not return ok:true: %+v", op, env.Error)
+			}
+		})
+	}
+}
+
 func TestInvokeRejectsUnknownOperation(t *testing.T) {
 	ts, token := newTestServer(t)
 	body, _ := json.Marshal(map[string]any{"operation": "task.create", "input": map[string]any{}})

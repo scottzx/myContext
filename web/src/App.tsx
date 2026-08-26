@@ -1,107 +1,69 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DataSource } from "./datasource";
 import { DataSourceError } from "./datasource";
-import type { Status, TreeArea } from "./types";
-import { CapacityBar } from "./components/CapacityBar";
-import { AgendaTable } from "./components/AgendaTable";
-import { WeekGrid } from "./components/WeekGrid";
-import { MilestoneTable } from "./components/MilestoneTable";
-import { OverdueTable } from "./components/OverdueTable";
-import { QualityList } from "./components/QualityList";
-import { ProjectTree } from "./components/ProjectTree";
+import type { Capabilities } from "./types";
+import { Tabs, type TabDef } from "./components/Tabs";
+import { GlobalSearch } from "./components/GlobalSearch";
+import { TodayView } from "./components/TodayView";
+import { PipelineView } from "./components/PipelineView";
+import { AccountsView } from "./components/AccountsView";
+import { ContractsView } from "./components/ContractsView";
+import { ContentView } from "./components/ContentView";
+import { ProductsView } from "./components/ProductsView";
+import { CompetitionsView } from "./components/CompetitionsView";
 
-interface Loaded {
-  status: Status;
-  tree: TreeArea[];
-}
+// Seven business-line entry points (the agreed IA), organised by business
+// line rather than by database table. The tab row sits directly under the
+// title; there is no router — `tab` is plain useState and each view mounts
+// (and fetches) only while it is the active one.
+const TABS: readonly TabDef[] = [
+  { id: "today", label: "今天" },
+  { id: "pipeline", label: "咨询交付" },
+  { id: "accounts", label: "客户" },
+  { id: "contracts", label: "合同回款" },
+  { id: "content", label: "内容" },
+  { id: "products", label: "产品" },
+  { id: "competitions", label: "比赛" },
+];
 
 export function App({ ds }: { ds: DataSource }) {
-  const [state, setState] = useState<Loaded | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<string>("today");
+  const [caps, setCaps] = useState<Capabilities | null>(null);
+  const [capsError, setCapsError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      try {
-        const [status, tree] = await Promise.all([
-          ds.query<Status>("ops.status"),
-          ds.query<TreeArea[]>("project.tree"),
-        ]);
-        if (!cancelled) setState({ status, tree });
-      } catch (err) {
+    ds.capabilities()
+      .then((c) => { if (!cancelled) setCaps(c); })
+      .catch((err) => {
         if (cancelled) return;
-        setError(err instanceof DataSourceError ? `${err.code}: ${err.message}` : String(err));
-      }
-    }
-    load();
+        setCapsError(err instanceof DataSourceError ? `${err.code}: ${err.message}` : String(err));
+      });
     return () => { cancelled = true; };
   }, [ds]);
 
-  if (error) {
-    return <div className="error-banner">{error}</div>;
-  }
-  if (!state) {
-    return <div className="loading">loading…</div>;
-  }
-
-  const { status, tree } = state;
+  // Drives which of the six new tabs can query at all — an operation not in
+  // this set renders "not available" instead of calling the backend (§16.2).
+  const ops = useMemo(() => new Set(caps?.operations ?? []), [caps]);
 
   return (
     <>
       <div className="header">
-        <h1>{status.today}</h1>
-        <span className="meta">projection v{status.projection_version}</span>
+        <h1>mycontext</h1>
+        <GlobalSearch ds={ds} available={ops.has("document.search")} />
       </div>
 
-      <section className="section">
-        <h2>today</h2>
-        <CapacityBar load={status.today_load} />
-        <AgendaTable entries={status.today_agenda} emptyLabel="nothing today" />
-      </section>
+      <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
-      <section className="section">
-        <h2>tomorrow</h2>
-        <AgendaTable entries={status.tomorrow_agenda} emptyLabel="nothing tomorrow" />
-      </section>
+      {capsError && <div className="error-banner">{capsError}</div>}
 
-      <section className="section">
-        <h2>next 7 days</h2>
-        <WeekGrid days={status.week} />
-      </section>
-
-      <section className="section">
-        <h2>milestones through this week ({status.milestones.length})</h2>
-        <MilestoneTable entries={status.milestones} />
-      </section>
-
-      <section className="section">
-        <h2>overdue ({status.totals.overdue})</h2>
-        <OverdueTable entries={status.overdue} />
-      </section>
-
-      <section className="section">
-        <h2>due for review ({status.totals.review_due})</h2>
-        <AgendaTable entries={status.review_due} emptyLabel="none" />
-      </section>
-
-      <section className="section">
-        <h2>important but unscheduled ({status.totals.unscheduled_important})</h2>
-        <AgendaTable entries={status.unscheduled_important} emptyLabel="none" />
-      </section>
-
-      <section className="section">
-        <h2>data quality ({status.totals.quality_issues})</h2>
-        <QualityList
-          issues={status.quality_issues}
-          truncated={status.totals.truncated}
-          total={status.totals.quality_issues}
-        />
-      </section>
-
-      <section className="section">
-        <h2>projects</h2>
-        <ProjectTree areas={tree} />
-      </section>
+      {tab === "today" && <TodayView ds={ds} />}
+      {tab === "pipeline" && <PipelineView ds={ds} ops={ops} />}
+      {tab === "accounts" && <AccountsView ds={ds} ops={ops} />}
+      {tab === "contracts" && <ContractsView ds={ds} ops={ops} />}
+      {tab === "content" && <ContentView />}
+      {tab === "products" && <ProductsView ds={ds} ops={ops} />}
+      {tab === "competitions" && <CompetitionsView ds={ds} ops={ops} />}
     </>
   );
 }

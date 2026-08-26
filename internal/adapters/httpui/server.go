@@ -193,7 +193,12 @@ type capabilitiesResponse struct {
 
 // queryOperations is the whitelist for this build: read-only, ops.db only.
 // There is deliberately no generic SQL or per-table endpoint (§16.1).
-var queryOperations = []string{"ops.status", "project.tree"}
+var queryOperations = []string{
+	"ops.status", "project.tree",
+	"account.list", "contact.list", "opportunity.list", "application.list", "contract.list",
+	"product.list", "ticket.list", "document.list", "document.search",
+	"biz.quality", "biz.pipeline", "receivable.list",
+}
 
 func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, capabilitiesResponse{
@@ -216,6 +221,36 @@ type invocationRequest struct {
 	Input     json.RawMessage `json:"input"`
 }
 
+// listInput is the shared JSON input shape for every read-only list
+// operation: every field is optional, and a missing one behaves as "no
+// filter" because it lines up with the zero value each ops.*Filter already
+// treats as unset. This lets every operation work with `{}` as input.
+type listInput struct {
+	Limit       int    `json:"limit,omitempty"`
+	AccountID   string `json:"account_id,omitempty"`
+	AreaID      string `json:"area_id,omitempty"`
+	AccountType string `json:"account_type,omitempty"`
+	Stage       string `json:"stage,omitempty"`
+	Status      string `json:"status,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	Severity    string `json:"severity,omitempty"`
+	OpenOnly    bool   `json:"open_only,omitempty"`
+	Search      string `json:"search,omitempty"`
+	Query       string `json:"query,omitempty"`
+}
+
+// decodeInput parses an operation's input, treating an empty/absent body the
+// same as `{}` - every whitelisted operation must work with no input at all.
+func decodeInput(raw json.RawMessage, v any) error {
+	if len(raw) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(raw, v); err != nil {
+		return protocol.BadInput("invalid input: %v", err)
+	}
+	return nil
+}
+
 func (s *Server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	var req invocationRequest
@@ -227,11 +262,89 @@ func (s *Server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var data any
 	var err error
+	var in listInput
 	switch req.Operation {
 	case "ops.status":
 		data, err = s.store.Status(ctx)
 	case "project.tree":
 		data, err = s.store.Tree(ctx, false)
+	case "account.list":
+		if err = decodeInput(req.Input, &in); err == nil {
+			data, err = s.store.ListAccounts(ctx, ops.AccountFilter{
+				AccountType: in.AccountType, Status: in.Status, Search: in.Search, Limit: in.Limit,
+			})
+		}
+	case "contact.list":
+		// Account 360 is not much of a 360 without the people: the decision
+		// maker, the evaluator, the gatekeeper are the point of the page.
+		if err = decodeInput(req.Input, &in); err == nil {
+			data, err = s.store.ListContacts(ctx, ops.ContactFilter{
+				AccountID: in.AccountID, Status: in.Status, Search: in.Search, Limit: in.Limit,
+			})
+		}
+	case "opportunity.list":
+		if err = decodeInput(req.Input, &in); err == nil {
+			data, err = s.store.ListOpportunities(ctx, ops.OpportunityFilter{
+				AccountID: in.AccountID, AreaID: in.AreaID, Stage: in.Stage,
+				OpenOnly: in.OpenOnly, Search: in.Search, Limit: in.Limit,
+			})
+		}
+	case "application.list":
+		if err = decodeInput(req.Input, &in); err == nil {
+			data, err = s.store.ListApplications(ctx, ops.ApplicationFilter{
+				AreaID: in.AreaID, AccountID: in.AccountID, Kind: in.Kind, Stage: in.Stage,
+				OpenOnly: in.OpenOnly, Search: in.Search, Limit: in.Limit,
+			})
+		}
+	case "contract.list":
+		if err = decodeInput(req.Input, &in); err == nil {
+			data, err = s.store.ListContracts(ctx, ops.ContractFilter{
+				AccountID: in.AccountID, Status: in.Status, Kind: in.Kind,
+				Search: in.Search, Limit: in.Limit,
+			})
+		}
+	case "product.list":
+		if err = decodeInput(req.Input, &in); err == nil {
+			data, err = s.store.ListProducts(ctx, ops.ProductFilter{
+				Kind: in.Kind, Status: in.Status, Search: in.Search, Limit: in.Limit,
+			})
+		}
+	case "ticket.list":
+		if err = decodeInput(req.Input, &in); err == nil {
+			data, err = s.store.ListServiceTickets(ctx, ops.ServiceTicketFilter{
+				AccountID: in.AccountID, Status: in.Status, Severity: in.Severity,
+				OpenOnly: in.OpenOnly, Search: in.Search, Limit: in.Limit,
+			})
+		}
+	case "document.list":
+		if err = decodeInput(req.Input, &in); err == nil {
+			data, err = s.store.ListDocuments(ctx, ops.DocumentFilter{
+				Kind: in.Kind, Search: in.Search, Limit: in.Limit,
+			})
+		}
+	case "document.search":
+		// SearchDocuments requires a non-empty query; an empty one is not an
+		// error here, it is a search for nothing, so it answers with no hits
+		// rather than failing the "every operation works with {}" contract.
+		if err = decodeInput(req.Input, &in); err == nil {
+			if in.Query == "" {
+				data = &ops.DocumentSearchResult{Mode: ops.SearchModeScan, Hits: []ops.DocumentHit{}}
+			} else {
+				data, err = s.store.SearchDocuments(ctx, in.Query, in.Limit)
+			}
+		}
+	case "biz.quality":
+		data, err = s.store.BizQualityIssues(ctx)
+	case "biz.pipeline":
+		if err = decodeInput(req.Input, &in); err == nil {
+			data, err = s.store.BizPipeline(ctx, ops.PipelineFilter{Limit: in.Limit})
+		}
+	case "receivable.list":
+		if err = decodeInput(req.Input, &in); err == nil {
+			data, err = s.store.ListReceivables(ctx, ops.ReceivableFilter{
+				AccountID: in.AccountID, Limit: in.Limit,
+			})
+		}
 	default:
 		err = protocol.BadInput("unsupported operation %q; this build only supports: %s",
 			req.Operation, strings.Join(queryOperations, ", "))

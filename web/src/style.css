@@ -9,6 +9,10 @@
   --danger-bg: #fef2f2;
   --warning: #b45309;
   --warning-bg: #fffbeb;
+  --stale: #57606a;
+  --stale-bg: #f1f2f4;
+  --ok: #15803d;
+  --ok-bg: #ecfdf3;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
@@ -24,6 +28,10 @@
     --danger-bg: #2a1618;
     --warning: #f5b942;
     --warning-bg: #2a2213;
+    --stale: #9aa4af;
+    --stale-bg: #23262b;
+    --ok: #4ade80;
+    --ok-bg: #12271a;
   }
 }
 
@@ -46,6 +54,8 @@ body {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-bottom: 24px;
 }
 
@@ -145,6 +155,14 @@ table.rows tr:last-child td { border-bottom: none; }
 .badge.P0 { background: var(--danger-bg); color: var(--danger); }
 .badge.P1 { background: var(--warning-bg); color: var(--warning); }
 .badge.P2, .badge.P3 { background: var(--bg-subtle); color: var(--text-muted); }
+
+/* Two more semantic tones, used by the business-line views: a stalled/stale
+   fact (an open deal untouched for weeks, a declared/planned mismatch) and
+   an ok/achieved fact (a won deal, a released product, a reconciled
+   contract). Neither implies advice - they only state which bucket a row is
+   in. */
+.badge.stale { background: var(--stale-bg); color: var(--stale); }
+.badge.ok { background: var(--ok-bg); color: var(--ok); }
 
 .week-grid {
   display: grid;
@@ -260,4 +278,242 @@ table.rows tr:last-child td { border-bottom: none; }
   color: var(--text-muted);
   padding: 40px 0;
   text-align: center;
+}
+
+/* ------------------------------------------------------------------------
+   Multi-view IA: tab nav, clickable rows, global search, product cards.
+   Everything below extends the tokens/classes above rather than redefining
+   its own padding/radius/hover.
+   ------------------------------------------------------------------------ */
+
+.tab-row {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+
+.tab-btn {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab-btn:hover {
+  color: var(--text);
+}
+
+.tab-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.tab-btn.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+/* A table row that opens a detail view (Account 360 today). Not a real
+   <button>, so tabIndex + keydown on the row carries keyboard reachability;
+   this just supplies the matching visual affordance. */
+tr.row-link {
+  cursor: pointer;
+}
+
+tr.row-link:hover {
+  background: var(--bg-subtle);
+}
+
+tr.row-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.back-btn {
+  appearance: none;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-bottom: 16px;
+}
+
+.back-btn:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+.back-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.search-box {
+  position: relative;
+  min-width: 220px;
+}
+
+.search-box input[type="search"] {
+  width: 100%;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.search-box input[type="search"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.search-box input[type="search"]:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* The one floating overlay in this app - elevated with a shadow the way a
+   dropdown needs to read above the page, not decoration on a resting
+   surface. */
+.search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 320px;
+  max-width: calc(100vw - 40px);
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+  padding: 8px;
+  z-index: 10;
+}
+
+.search-results ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.search-results li {
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.search-results li:last-child {
+  border-bottom: none;
+}
+
+.search-snippet {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.product-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.product-card-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.product-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.product-card-row {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Numbers that need to line up in a column - funnel counts/amounts,
+   receivable balances, product/competition figures. */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------------
+   Responsive layout. There was no layout media query at all before this -
+   each .section already wraps exactly one table/grid, so giving it its own
+   horizontal scroll is enough to keep the page body from ever scrolling
+   sideways on a 5+ column table or the 7-column week grid.
+   ------------------------------------------------------------------------ */
+
+body {
+  overflow-x: hidden;
+}
+
+.section {
+  overflow-x: auto;
+}
+
+@media (max-width: 640px) {
+  #root {
+    padding: 16px 12px 60px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .search-box {
+    width: 100%;
+  }
+
+  .week-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 420px) {
+  .week-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Each business line gets its own funnel table. There is deliberately no
+   total across them: contract money, prize money and impression counts are
+   not comparable, so a combined figure would be a meaningless number. */
+.funnel-group { margin-bottom: 16px; }
+.funnel-group:last-child { margin-bottom: 0; }
+
+.funnel-area {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 6px;
 }

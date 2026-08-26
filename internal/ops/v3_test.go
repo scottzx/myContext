@@ -745,3 +745,81 @@ func TestLibraryJournalSurvivesRepeatedCalls(t *testing.T) {
 		t.Fatalf("ListPackageIDs should report the one package, got %v err=%v", ids, err)
 	}
 }
+
+// receivable.list is what the UI renders on the money screen, and its job is
+// to hand the frontend BOTH numbers plus the gap between them - never one
+// reconciled figure. The display rule depends entirely on this view getting
+// the arithmetic right, so the arithmetic is pinned here rather than left to
+// a manual check.
+func TestReceivableViewReportsTheGapWithoutClosingIt(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	acct, err := store.CreateAccount(ctx, writeCtx("r-acct"), ops.CreateAccountInput{
+		Name: "杭州云深处科技股份有限公司", AccountType: "customer",
+	})
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	acctID := acct.Data.(*ops.Account).ID
+
+	contract, err := store.CreateContract(ctx, writeCtx("r-ctr"), ops.CreateContractInput{
+		AccountID: acctID, Kind: "sales", ContractNo: "YS-2026-001",
+		Name: "云深处二期服务合同", SignDate: "2026-08-01", Amount: 680000, Status: "signed",
+	})
+	if err != nil {
+		t.Fatalf("create contract: %v", err)
+	}
+	ctrID := contract.Data.(*ops.Contract).ID
+
+	// Three instalments of 200k against a declared 680k: 80k unaccounted for.
+	for seq, due := range map[int]string{1: "2026-06-30", 2: "2026-08-20", 3: "2026-11-30"} {
+		if _, err := store.SetReceivablePlan(ctx, writeCtx(fmt.Sprintf("r-plan-%d", seq)),
+			ops.SetReceivablePlanInput{ContractID: ctrID, Seq: seq, DueDate: due, Amount: 200000}); err != nil {
+			t.Fatalf("set plan %d: %v", seq, err)
+		}
+	}
+	if _, err := store.RecordReceipt(ctx, writeCtx("r-rcpt"), ops.RecordReceiptInput{
+		ContractID: ctrID, Amount: 200000, ReceivedAt: "2026-06-28T10:00:00+08:00",
+	}); err != nil {
+		t.Fatalf("record receipt: %v", err)
+	}
+
+	rows, err := store.ListReceivables(ctx, ops.ReceivableFilter{})
+	if err != nil {
+		t.Fatalf("list receivables: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("expected one contract, got %d", len(rows))
+	}
+	r := rows[0]
+
+	// Both numbers must survive to the frontend, unreconciled.
+	if r.DeclaredAmount != 680000 {
+		t.Fatalf("declared amount must be reported as written, got %v", r.DeclaredAmount)
+	}
+	if r.PlannedAmount != 600000 {
+		t.Fatalf("planned total should be 600000, got %v", r.PlannedAmount)
+	}
+	if !r.PlanMismatch {
+		t.Fatal("a 680000 contract with 600000 of instalments must be flagged as mismatched")
+	}
+	if r.PlanGap != -80000 {
+		t.Fatalf("the gap should be reported as -80000, got %v", r.PlanGap)
+	}
+	if r.ReceivedAmount != 200000 || r.OutstandingAmount != 480000 {
+		t.Fatalf("received/outstanding wrong: %v / %v", r.ReceivedAmount, r.OutstandingAmount)
+	}
+	if r.OverReceived {
+		t.Fatal("receipts are well under the contract; over_received must be false")
+	}
+
+	// And the stored contract is still exactly what the user wrote.
+	after, err := store.GetContract(ctx, ctrID)
+	if err != nil {
+		t.Fatalf("get contract: %v", err)
+	}
+	if after.Amount != 680000 {
+		t.Fatalf("reading the view rewrote the contract to %v", after.Amount)
+	}
+}

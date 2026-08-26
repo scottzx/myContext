@@ -172,3 +172,223 @@ export interface Capabilities {
   root: string;
   cli_version: string;
 }
+
+// --- business core (internal/ops/model.go, 005_business_core.sql) ---------
+// Mirrored field-for-field from the Go structs the way the block above
+// mirrors status/hierarchy. These back the six business-line tabs; a field
+// the Go side does not send must not appear here.
+
+export interface Account {
+  id: string;
+  name: string;
+  short_name: string | null;
+  account_type: string;
+  industry: string | null;
+  region: string | null;
+  status: string;
+  owner: string | null;
+  note: string | null;
+  legacy_ref: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Opportunity {
+  id: string;
+  account_id: string;
+  area_id: string | null;
+  primary_contact_id: string | null;
+  name: string;
+  source: string | null;
+  source_batch: string | null;
+  stage: "lead" | "qualified" | "proposal" | "negotiation" | "won" | "lost";
+  est_amount: number | null;
+  win_probability: number | null;
+  expected_sign_date: string | null;
+  owner: string | null;
+  next_step: string | null;
+  lost_reason: string | null;
+  closed_at: string | null;
+  note: string | null;
+  legacy_ref: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Application {
+  id: string;
+  area_id: string | null;
+  account_id: string | null;
+  project_id: string | null;
+  name: string;
+  kind: string;
+  stage:
+    | "discovered"
+    | "preparing"
+    | "submitted"
+    | "under_review"
+    | "shortlisted"
+    | "won"
+    | "rejected"
+    | "withdrawn";
+  submitted_at: string | null;
+  decided_at: string | null;
+  prize_amount: number | null;
+  outcome_note: string | null;
+  reject_reason: string | null;
+  owner: string | null;
+  next_step: string | null;
+  legacy_ref: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Contract {
+  id: string;
+  account_id: string;
+  opportunity_id: string | null;
+  application_id: string | null;
+  kind: string;
+  contract_no: string | null;
+  name: string;
+  sign_date: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  amount: number;
+  unit_price: number | null;
+  quantity: number | null;
+  currency: string;
+  status: string;
+  payment_terms: string | null;
+  note: string | null;
+  legacy_ref: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceTicket {
+  id: string;
+  account_id: string;
+  contract_id: string | null;
+  project_id: string | null;
+  title: string;
+  opened_at: string;
+  kind: string;
+  severity: "S1" | "S2" | "S3" | "S4";
+  status: string;
+  assignee: string | null;
+  closed_at: string | null;
+  resolution: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  kind: string;
+  status: string;
+  positioning: string | null;
+  repo_url: string | null;
+  owner: string | null;
+  current_release_id: string | null;
+  launch_date: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// v_contract_receivable (internal/cli/revenue_cmd.go contractReceivableRow).
+// declared_amount is always shown next to planned/received/outstanding —
+// never reconciled into one number — per the product's one hard display rule.
+export interface ContractReceivable {
+  contract_id: string;
+  contract_no: string | null;
+  name: string;
+  kind: string;
+  status: string;
+  currency: string;
+  sign_date: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  payment_terms: string | null;
+  account_id: string;
+  account_name: string | null;
+  opportunity_id: string | null;
+  application_id: string | null;
+  declared_amount: number;
+  planned_amount: number;
+  plan_count: number;
+  waived_amount: number;
+  received_amount: number;
+  receipt_count: number;
+  last_receipt_at: string | null;
+  outstanding_amount: number;
+  received_ratio: number;
+  plan_gap: number;
+  plan_mismatch: boolean;
+  unit_price: number | null;
+  quantity: number | null;
+  line_amount: number | null;
+  line_mismatch: boolean;
+  over_received: boolean;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// v_receivable_aging / v_receivable_overdue (internal/cli/revenue_cmd.go
+// receivableAgingRow): one still-open instalment.
+export interface ReceivableAging {
+  plan_id: string;
+  contract_id: string;
+  contract_no: string | null;
+  contract_name: string;
+  contract_kind: string;
+  contract_status: string;
+  currency: string;
+  account_id: string;
+  account_name: string | null;
+  seq: number;
+  due_date: string;
+  planned_amount: number;
+  open_amount: number;
+  status: string;
+  condition_note: string | null;
+  days_overdue: number;
+  aging_bucket: string;
+}
+
+// internal/ops/search.go DocumentHit / DocumentSearchResult.
+export interface DocumentHit {
+  doc_id: string;
+  title: string;
+  kind: string;
+  rel_path?: string;
+  snippet?: string;
+}
+
+export interface DocumentSearchResult {
+  query: string;
+  mode: "index" | "scan";
+  hits: DocumentHit[];
+}
+
+// Mirrors ops.PipelineSummary (internal/ops/biz_query.go), which reads the
+// v_pipeline view. The funnel is grouped by area on purpose: contract money,
+// prize money and impressions are not comparable, so there is no total across
+// business lines and none should be computed here either.
+export interface PipelineSummary {
+  area_id: string | null;
+  area_name: string | null;
+  stage: string;
+  is_open: boolean;
+  opportunity_count: number;
+  est_amount_total: number;
+  weighted_amount_total: number;
+}
