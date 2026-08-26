@@ -11,3 +11,4 @@ web/tsconfig.tsbuildinfo
 *.db
 *.db-wal
 *.db-shm
+.gstack/
