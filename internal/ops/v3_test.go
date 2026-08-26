@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/scottzx/mycontext/internal/library"
 	"github.com/scottzx/mycontext/internal/ops"
 	"github.com/scottzx/mycontext/internal/protocol"
 )
@@ -369,5 +370,378 @@ func TestEveryValidEntityTypeCanCarryTagsAndEdges(t *testing.T) {
 		}); appErrCode(t, err) != protocol.CodeNotFound {
 			t.Errorf("entity type %q does not resolve to a real table: %v", typ, err)
 		}
+	}
+}
+
+// The referential guards in v_biz_quality_issues skip entity types they cannot
+// resolve. That list must come from the schema (v_entity_types, a list of
+// literals), never from the data (SELECT DISTINCT entity_type FROM
+// v_entity_index, whose rows exist only where a table is non-empty).
+//
+// It was briefly the latter, and the failure mode was silent: with an empty
+// content_pieces table, "content_piece" was not a known type, so an edge
+// pointing at a nonexistent piece was not reported at all. The check stopped
+// checking on a fresh instance - precisely where a dangling reference is most
+// likely and least visible. Inserting one unrelated row switched the same
+// check back on, which is how it was found.
+func TestDanglingReferencesAreFoundWithEmptyEntityTables(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	sql := store.DB().SQL()
+
+	var pieces int
+	if err := sql.QueryRowContext(ctx, `SELECT count(*) FROM content_pieces`).Scan(&pieces); err != nil {
+		t.Fatalf("count content_pieces: %v", err)
+	}
+	if pieces != 0 {
+		t.Fatalf("this test is only meaningful against an empty table, found %d rows", pieces)
+	}
+
+	// Every type the schema declares must be resolvable with zero rows behind it.
+	var known int
+	if err := sql.QueryRowContext(ctx,
+		`SELECT count(*) FROM v_entity_types WHERE entity_type = 'content_piece'`).Scan(&known); err != nil {
+		t.Fatalf("query v_entity_types: %v", err)
+	}
+	if known != 1 {
+		t.Fatal("content_piece is not a known entity type when its table is empty; " +
+			"the guard is reading the data, not the schema")
+	}
+
+	if _, err := sql.ExecContext(ctx, `
+        INSERT INTO documents (id, kind, title, lineage_id, version, created_at, updated_at)
+        VALUES ('doc_probe','report','探针文档','doc_probe',1,'2026-08-26','2026-08-26')`); err != nil {
+		t.Fatalf("insert document: %v", err)
+	}
+	if _, err := sql.ExecContext(ctx, `
+        INSERT INTO context_edges (id, from_type, from_id, to_type, to_id, edge_type, created_at)
+        VALUES ('ce_probe','document','doc_probe','content_piece','cp_missing','references','2026-08-26')`); err != nil {
+		t.Fatalf("insert context_edge: %v", err)
+	}
+
+	var dangling int
+	if err := sql.QueryRowContext(ctx,
+		`SELECT count(*) FROM v_biz_quality_issues WHERE issue = 'dangling_context_edge'`).Scan(&dangling); err != nil {
+		t.Fatalf("query quality issues: %v", err)
+	}
+	if dangling != 1 {
+		t.Fatalf("a soft relation pointing at a nonexistent content_piece went unreported "+
+			"(got %d rows); an empty table must not switch the guard off", dangling)
+	}
+
+	// And the guard must stay quiet when the target genuinely exists.
+	if _, err := sql.ExecContext(ctx, `
+        INSERT INTO channels (id, platform, name, status, version, created_at, updated_at)
+        VALUES ('ch_probe','xiaohongshu','探针号','active',1,'2026-08-26','2026-08-26');
+        INSERT INTO content_pieces (id, channel_id, title, status, version, created_at, updated_at)
+        VALUES ('cp_missing','ch_probe','补上的内容','idea',1,'2026-08-26','2026-08-26')`); err != nil {
+		t.Fatalf("insert content piece: %v", err)
+	}
+	if err := sql.QueryRowContext(ctx,
+		`SELECT count(*) FROM v_biz_quality_issues WHERE issue = 'dangling_context_edge'`).Scan(&dangling); err != nil {
+		t.Fatalf("re-query quality issues: %v", err)
+	}
+	if dangling != 0 {
+		t.Fatalf("the edge resolves now, but it is still reported dangling (%d rows)", dangling)
+	}
+}
+
+// Products are the hub the revenue-bearing lines meet at, and 006 added two
+// columns (current_release_id, launch_date) after the struct was first
+// written. A scanner that was not widened with the table fails only once a
+// row exists, so this exercises the whole round trip rather than just the
+// insert.
+func TestProductRoundTripsThrough006Columns(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	created, err := store.CreateProduct(ctx, writeCtx("req-prod"), ops.CreateProductInput{
+		Name: "听记", Kind: "product", Status: "developing",
+		Positioning: "本地录音转文字，基于 funasr", LaunchDate: "2026-07-30",
+	})
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	prod := created.Data.(*ops.Product)
+	if prod.LaunchDate == nil || *prod.LaunchDate != "2026-07-30" {
+		t.Fatalf("launch_date did not round trip: %v", prod.LaunchDate)
+	}
+	if prod.CurrentReleaseID != nil {
+		t.Fatal("a new product should not claim a current release")
+	}
+
+	// The list path scans the same widened row.
+	list, err := store.ListProducts(ctx, ops.ProductFilter{})
+	if err != nil {
+		t.Fatalf("list products: %v", err)
+	}
+	if len(list) != 1 || list[0].Name != "听记" {
+		t.Fatalf("expected the product back, got %+v", list)
+	}
+
+	// Pointing at a release that does not exist must read as NOT_FOUND, not as
+	// a foreign-key constraint error surfacing from the driver.
+	missing := "rel_nope"
+	_, err = store.UpdateProduct(ctx, writeCtx("req-prod-bad"), ops.UpdateProductInput{
+		ProductID: prod.ID, ExpectedVersion: prod.Version, CurrentReleaseID: &missing,
+	})
+	if code := appErrCode(t, err); code != protocol.CodeNotFound {
+		t.Fatalf("expected NOT_FOUND for an absent release, got %s", code)
+	}
+
+	// A stale version must lose, not silently overwrite.
+	name := "听记 Pro"
+	_, err = store.UpdateProduct(ctx, writeCtx("req-prod-stale"), ops.UpdateProductInput{
+		ProductID: prod.ID, ExpectedVersion: prod.Version + 5, Name: &name,
+	})
+	if code := appErrCode(t, err); code != protocol.CodeVersionConflict {
+		t.Fatalf("expected VERSION_CONFLICT, got %s", code)
+	}
+}
+
+// The rule the whole revenue model rests on: a disagreement between the
+// declared contract amount and the sum of its receivable plans is a FACT to
+// report, never something to block or quietly correct. This is the same
+// treatment overload gets - state it, let the user decide. A well-meaning
+// validation added here would silently destroy that guarantee, so the test
+// asserts the write succeeds, the declared number is untouched, and the
+// quality view is the thing that speaks up.
+func TestAmountMismatchIsRecordedNotRefused(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	acct, err := store.CreateAccount(ctx, writeCtx("req-acct"), ops.CreateAccountInput{
+		Name: "杭州云深处科技股份有限公司", AccountType: "customer",
+	})
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	acctID := acct.Data.(*ops.Account).ID
+
+	contract, err := store.CreateContract(ctx, writeCtx("req-ctr"), ops.CreateContractInput{
+		AccountID: acctID, Kind: "sales", ContractNo: "YS-2026-001",
+		Name: "云深处二期服务合同", SignDate: "2026-08-01", Amount: 100000, Status: "signed",
+	})
+	if err != nil {
+		t.Fatalf("create contract: %v", err)
+	}
+	ctrID := contract.Data.(*ops.Contract).ID
+
+	// One plan for 80k against a 100k contract - deliberately inconsistent.
+	if _, err := store.SetReceivablePlan(ctx, writeCtx("req-plan"), ops.SetReceivablePlanInput{
+		ContractID: ctrID, Seq: 1, DueDate: "2026-09-01", Amount: 80000,
+	}); err != nil {
+		t.Fatalf("a plan that disagrees with the contract total must still be accepted: %v", err)
+	}
+
+	// The declared amount is the user's number and stays put.
+	after, err := store.GetContract(ctx, ctrID)
+	if err != nil {
+		t.Fatalf("get contract: %v", err)
+	}
+	if after.Amount != 100000 {
+		t.Fatalf("the declared contract amount was rewritten to %v; it must never be "+
+			"reconciled behind the user's back", after.Amount)
+	}
+
+	// And the mismatch surfaces as a stated fact.
+	var issues int
+	if err := store.DB().SQL().QueryRowContext(ctx,
+		`SELECT count(*) FROM v_biz_quality_issues
+          WHERE entity_id = ? AND issue = 'contract_amount_plan_mismatch'`, ctrID).Scan(&issues); err != nil {
+		t.Fatalf("query quality issues: %v", err)
+	}
+	if issues != 1 {
+		t.Fatalf("the amount/plan disagreement went unreported (%d rows)", issues)
+	}
+}
+
+// A contract may only descend from a won opportunity. Anything else means the
+// pipeline and the revenue record disagree about whether the deal happened.
+func TestContractRequiresAWonOpportunity(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	acct, err := store.CreateAccount(ctx, writeCtx("req-a"), ops.CreateAccountInput{Name: "某客户"})
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	acctID := acct.Data.(*ops.Account).ID
+
+	opp, err := store.CreateOpportunity(ctx, writeCtx("req-o"), ops.CreateOpportunityInput{
+		AccountID: acctID, Name: "三期扩展", Stage: "negotiation",
+	})
+	if err != nil {
+		t.Fatalf("create opportunity: %v", err)
+	}
+	oppID := opp.Data.(*ops.Opportunity).ID
+
+	_, err = store.CreateContract(ctx, writeCtx("req-c"), ops.CreateContractInput{
+		AccountID: acctID, OpportunityID: oppID, Name: "抢跑的合同", Amount: 1000,
+	})
+	if code := appErrCode(t, err); code != protocol.CodeBadInput {
+		t.Fatalf("a contract under a still-negotiating opportunity should be refused, got %s", code)
+	}
+}
+
+// Search has to answer two shapes of query against one Chinese corpus, and the
+// split is forced by the tokenizer, not chosen for convenience: trigram finds
+// 三字及以上 substrings and structurally cannot match a two-character one.
+// 杨总 is exactly the shape used to refer to a key contact, so if only the
+// index path worked, searching for a person by name would silently return
+// nothing. Both paths are exercised here against the same document.
+func TestSearchFindsChineseByBothPaths(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	added, err := store.AddDocument(ctx, writeCtx("req-doc"), ops.AddDocumentInput{
+		Kind: "meeting_note", Title: "云深处 8/18 沟通纪要",
+		RelPath: "2026/08/18/cap_x/original/source.md", FileRole: "original",
+	})
+	if err != nil {
+		t.Fatalf("add document: %v", err)
+	}
+	docID := added.Data.(*ops.Document).ID
+
+	// Until the body is indexed it is a maintenance item, not an error.
+	missing, err := store.UnindexedDocuments(ctx)
+	if err != nil {
+		t.Fatalf("unindexed: %v", err)
+	}
+	if len(missing) != 1 || missing[0].DocID != docID {
+		t.Fatalf("a document with an original file but no body should be queued, got %+v", missing)
+	}
+
+	body := "本次会议由杨总主持，确认了云深处 AI 转型的下一步，" +
+		"并把数据标注的结算口径定在 9 月 5 日。"
+	if _, err := store.IndexDocument(ctx, writeCtx("req-idx"), ops.IndexDocumentInput{
+		DocumentID: docID, Body: body,
+	}); err != nil {
+		t.Fatalf("index document: %v", err)
+	}
+
+	// Three characters or more: the trigram index answers.
+	for _, q := range []string{"云深处", "数据标注", "AI 转型"} {
+		res, err := store.SearchDocuments(ctx, q, 0)
+		if err != nil {
+			t.Fatalf("search %q: %v", q, err)
+		}
+		if res.Mode != ops.SearchModeIndex {
+			t.Fatalf("search %q should use the index, used %q", q, res.Mode)
+		}
+		if len(res.Hits) != 1 {
+			t.Fatalf("search %q found %d documents, want 1", q, len(res.Hits))
+		}
+	}
+
+	// Two characters: the index cannot match, so the scan must.
+	res, err := store.SearchDocuments(ctx, "杨总", 0)
+	if err != nil {
+		t.Fatalf("search 杨总: %v", err)
+	}
+	if res.Mode != ops.SearchModeScan {
+		t.Fatalf("a two-character query must fall back to a scan, used %q", res.Mode)
+	}
+	if len(res.Hits) != 1 {
+		t.Fatalf("searching for 杨总 found %d documents, want 1; the short-query "+
+			"fallback is how a key contact is found by name", len(res.Hits))
+	}
+
+	// A term that is genuinely absent stays absent on both paths.
+	for _, q := range []string{"根本没提到的词", "阿里"} {
+		res, err := store.SearchDocuments(ctx, q, 0)
+		if err != nil {
+			t.Fatalf("search %q: %v", q, err)
+		}
+		if len(res.Hits) != 0 {
+			t.Fatalf("search %q should find nothing, found %d", q, len(res.Hits))
+		}
+	}
+
+	// Re-indexing replaces rather than accumulates.
+	if _, err := store.IndexDocument(ctx, writeCtx("req-idx2"), ops.IndexDocumentInput{
+		DocumentID: docID, Body: body,
+	}); err != nil {
+		t.Fatalf("re-index: %v", err)
+	}
+	res, err = store.SearchDocuments(ctx, "云深处", 0)
+	if err != nil {
+		t.Fatalf("search after re-index: %v", err)
+	}
+	if len(res.Hits) != 1 {
+		t.Fatalf("re-indexing duplicated the document: %d hits", len(res.Hits))
+	}
+}
+
+// The Library's crash recovery is only as good as the journal underneath it.
+// internal/library proves the six-row matrix against a fake; this proves the
+// real ops.db implementation honours the same contract, including the two
+// properties recovery depends on: re-staging and re-sealing are safe to
+// repeat, and a request id maps back to the package it already produced.
+func TestLibraryJournalSurvivesRepeatedCalls(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	j := store.NewLibraryJournal()
+
+	rec := library.JournalRecord{
+		PackageID:    "cap_01ABC",
+		RequestID:    "req-capture-1",
+		StorageDate:  "2026-08-26",
+		ManifestHash: "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+		StagedAt:     fixedNow,
+	}
+	if err := j.MarkStaging(ctx, rec); err != nil {
+		t.Fatalf("mark staging: %v", err)
+	}
+	// A crash between staging and rename means this runs twice. It must not
+	// collide on the primary key.
+	if err := j.MarkStaging(ctx, rec); err != nil {
+		t.Fatalf("re-staging the same package must be safe: %v", err)
+	}
+
+	got, found, err := j.Lookup(ctx, rec.PackageID)
+	if err != nil || !found {
+		t.Fatalf("lookup after staging: found=%v err=%v", found, err)
+	}
+	if got.State != library.StateStaging {
+		t.Fatalf("expected staging, got %q", got.State)
+	}
+	if got.StorageDate != "2026-08-26" {
+		t.Fatalf("storage date did not round trip: %q", got.StorageDate)
+	}
+
+	// Idempotent capture: the same request must resolve to the same package
+	// rather than producing a second copy of the same bytes.
+	id, found, err := j.FindByRequestID(ctx, "req-capture-1")
+	if err != nil || !found || id != rec.PackageID {
+		t.Fatalf("request id should map back to its package, got %q found=%v err=%v", id, found, err)
+	}
+	if _, found, err := j.FindByRequestID(ctx, "req-never-used"); err != nil || found {
+		t.Fatalf("an unused request id must report not-found, got found=%v err=%v", found, err)
+	}
+
+	if err := j.MarkSealed(ctx, rec.PackageID, fixedNow); err != nil {
+		t.Fatalf("mark sealed: %v", err)
+	}
+	if err := j.MarkSealed(ctx, rec.PackageID, fixedNow); err != nil {
+		t.Fatalf("re-sealing must be a no-op, not an error: %v", err)
+	}
+	got, _, err = j.Lookup(ctx, rec.PackageID)
+	if err != nil {
+		t.Fatalf("lookup after sealing: %v", err)
+	}
+	if got.State != library.StateSealed || got.SealedAt.IsZero() {
+		t.Fatalf("expected a sealed record with a sealing time, got %q / %v", got.State, got.SealedAt)
+	}
+
+	// An unknown package is "no record", not an error - that distinction is a
+	// whole row of the recovery matrix.
+	if _, found, err := j.Lookup(ctx, "cap_nope"); err != nil || found {
+		t.Fatalf("unknown package: found=%v err=%v", found, err)
+	}
+
+	ids, err := j.ListPackageIDs(ctx)
+	if err != nil || len(ids) != 1 || ids[0] != rec.PackageID {
+		t.Fatalf("ListPackageIDs should report the one package, got %v err=%v", ids, err)
 	}
 }

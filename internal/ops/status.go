@@ -467,3 +467,41 @@ func endOfWeek(today string) string {
 	}
 	return t.AddDate(0, 0, 6).Format(system.DateLayout)
 }
+
+// BizQualityIssueCount counts business-domain rule violations. It is separate
+// from QualityIssueCount because the two answer different questions: the
+// execution view asks whether the plan is coherent, this asks whether the
+// business record is. A single number would hide which one needs attention.
+func (s *Store) BizQualityIssueCount(ctx context.Context) (int, error) {
+	var n int
+	if err := s.db.SQL().QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM v_biz_quality_issues`).Scan(&n); err != nil {
+		return 0, sqlite.Classify(err)
+	}
+	return n, nil
+}
+
+// BizQualityIssues lists the business-domain violations, newest concern first.
+// Every row states a fact - a contract whose plans do not add up, a won
+// application with no prize contract - and none of them is corrected
+// automatically; deciding what to do is the user's job.
+func (s *Store) BizQualityIssues(ctx context.Context) ([]QualityIssue, error) {
+	rows, err := s.db.SQL().QueryContext(ctx, `
+        SELECT entity_type, entity_id, title, issue, detail
+          FROM v_biz_quality_issues
+         ORDER BY issue, entity_id
+         LIMIT 500`)
+	if err != nil {
+		return nil, sqlite.Classify(err)
+	}
+	defer rows.Close()
+	out := []QualityIssue{}
+	for rows.Next() {
+		var q QualityIssue
+		if err := rows.Scan(&q.EntityType, &q.EntityID, &q.Title, &q.Issue, &q.Detail); err != nil {
+			return nil, sqlite.Classify(err)
+		}
+		out = append(out, q)
+	}
+	return out, sqlite.Classify(rows.Err())
+}

@@ -251,6 +251,34 @@ func newDoctorCmd(opts *GlobalOptions) *cobra.Command {
 				} else {
 					add("ops.data_quality", "pass", "no issues")
 				}
+
+				// The business record is checked separately from the plan: a
+				// contract whose instalments do not add up and a project with
+				// no next action are different problems, and merging them into
+				// one count hides which one is asking for attention. These are
+				// warnings by design - every rule states a fact the user
+				// decides about, and none of them is repaired automatically.
+				if count, err := store.BizQualityIssueCount(ctx); err != nil {
+					add("biz.data_quality", "warn", err.Error())
+				} else if count > 0 {
+					add("biz.data_quality", "warn",
+						fmt.Sprintf("%d business issue(s); see `mycontext biz quality`", count))
+				} else {
+					add("biz.data_quality", "pass", "no issues")
+				}
+
+				// Search degrades quietly: a document with no indexed body is
+				// still findable by title and metadata, just not by content.
+				// That is worth reporting because nothing else surfaces it.
+				if missing, err := store.UnindexedDocuments(ctx); err != nil {
+					add("biz.search_index", "warn", err.Error())
+				} else if len(missing) > 0 {
+					add("biz.search_index", "repairable",
+						fmt.Sprintf("%d document(s) have an original file but no indexed text; "+
+							"run `mycontext doc reindex`", len(missing)))
+				} else {
+					add("biz.search_index", "pass", "every document body is indexed")
+				}
 			}
 		}
 

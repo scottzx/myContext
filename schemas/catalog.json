@@ -68,6 +68,464 @@
   ],
   "operations": [
     {
+      "name": "account.create",
+      "invoke": "mycontext account create <name> [flags]",
+      "summary": "Record a counterparty (customer|prospect|partner|vendor|organizer|media|community|individual)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--industry",
+          "type": "string",
+          "description": "industry"
+        },
+        {
+          "name": "--legacy-ref",
+          "type": "string",
+          "description": "reference into the legacy data source"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--owner",
+          "type": "string",
+          "description": "who owns this relationship"
+        },
+        {
+          "name": "--region",
+          "type": "string",
+          "description": "region"
+        },
+        {
+          "name": "--short-name",
+          "type": "string",
+          "description": "short/display name"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "active|dormant|archived (default active)"
+        },
+        {
+          "name": "--type",
+          "type": "string",
+          "description": "customer|prospect|partner|vendor|organizer|media|community|individual (default prospect)"
+        }
+      ]
+    },
+    {
+      "name": "account.get",
+      "invoke": "mycontext account get <id>",
+      "summary": "Show one account",
+      "write": false,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "account.list",
+      "invoke": "mycontext account list [flags]",
+      "summary": "List accounts, most recently updated first",
+      "write": false,
+      "flags": [
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "200"
+        },
+        {
+          "name": "--search",
+          "type": "string",
+          "description": "match name"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "filter by status"
+        },
+        {
+          "name": "--type",
+          "type": "string",
+          "description": "filter by account_type"
+        }
+      ]
+    },
+    {
+      "name": "account.update",
+      "invoke": "mycontext account update <id> [flags]",
+      "summary": "Patch an account (requires --expected-version)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--industry",
+          "type": "string",
+          "description": "industry"
+        },
+        {
+          "name": "--name",
+          "type": "string",
+          "description": "new name"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--owner",
+          "type": "string",
+          "description": "who owns this relationship"
+        },
+        {
+          "name": "--region",
+          "type": "string",
+          "description": "region"
+        },
+        {
+          "name": "--short-name",
+          "type": "string",
+          "description": "short/display name"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "active|dormant|archived"
+        },
+        {
+          "name": "--type",
+          "type": "string",
+          "description": "customer|prospect|partner|vendor|organizer|media|community|individual"
+        }
+      ]
+    },
+    {
+      "name": "app.advance",
+      "invoke": "mycontext app advance <id> [flags]",
+      "summary": "Move an application to a stage",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--to",
+          "type": "string",
+          "description": "discovered|preparing|submitted|under_review|shortlisted|won|rejected|withdrawn (required)"
+        }
+      ]
+    },
+    {
+      "name": "app.create",
+      "invoke": "mycontext app create <name> [flags]",
+      "summary": "Record something we apply to (competition|program|job|listing|partnership)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--account",
+          "type": "string",
+          "description": "account id, if this is with a known party"
+        },
+        {
+          "name": "--area",
+          "type": "string",
+          "description": "area id"
+        },
+        {
+          "name": "--decided-at",
+          "type": "string",
+          "description": "when decided, RFC 3339"
+        },
+        {
+          "name": "--kind",
+          "type": "string",
+          "description": "competition|program|job|listing|partnership (default competition)"
+        },
+        {
+          "name": "--legacy-ref",
+          "type": "string",
+          "description": "reference into the legacy data source"
+        },
+        {
+          "name": "--next-step",
+          "type": "string",
+          "description": "what happens next"
+        },
+        {
+          "name": "--outcome",
+          "type": "string",
+          "description": "outcome note"
+        },
+        {
+          "name": "--owner",
+          "type": "string",
+          "description": "who owns this"
+        },
+        {
+          "name": "--prize",
+          "type": "float64",
+          "description": "prize/value amount",
+          "default": "0"
+        },
+        {
+          "name": "--project",
+          "type": "string",
+          "description": "project id this supports"
+        },
+        {
+          "name": "--reject-reason",
+          "type": "string",
+          "description": "why rejected (required if --stage rejected)"
+        },
+        {
+          "name": "--stage",
+          "type": "string",
+          "description": "discovered|preparing|submitted|under_review|shortlisted|won|rejected|withdrawn (default discovered)"
+        },
+        {
+          "name": "--submitted-at",
+          "type": "string",
+          "description": "when submitted, RFC 3339"
+        }
+      ]
+    },
+    {
+      "name": "app.get",
+      "invoke": "mycontext app get <id>",
+      "summary": "Show one application",
+      "write": false,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "app.list",
+      "invoke": "mycontext app list [flags]",
+      "summary": "List applications, most recently submitted first",
+      "write": false,
+      "flags": [
+        {
+          "name": "--account",
+          "type": "string",
+          "description": "filter by account id"
+        },
+        {
+          "name": "--area",
+          "type": "string",
+          "description": "filter by area id"
+        },
+        {
+          "name": "--kind",
+          "type": "string",
+          "description": "filter by kind"
+        },
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "200"
+        },
+        {
+          "name": "--open",
+          "type": "bool",
+          "description": "exclude won, rejected and withdrawn",
+          "default": "false"
+        },
+        {
+          "name": "--search",
+          "type": "string",
+          "description": "match name"
+        },
+        {
+          "name": "--stage",
+          "type": "string",
+          "description": "filter by stage"
+        }
+      ]
+    },
+    {
+      "name": "app.reject",
+      "invoke": "mycontext app reject <id> [flags]",
+      "summary": "Mark an application rejected (requires --reason)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--reason",
+          "type": "string",
+          "description": "why it was rejected (required)"
+        }
+      ]
+    },
+    {
+      "name": "app.update",
+      "invoke": "mycontext app update <id> [flags]",
+      "summary": "Patch an application (requires --expected-version; use `app advance|win|reject|withdraw` to change stage)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--account",
+          "type": "string",
+          "description": "account id, if this is with a known party"
+        },
+        {
+          "name": "--area",
+          "type": "string",
+          "description": "area id"
+        },
+        {
+          "name": "--decided-at",
+          "type": "string",
+          "description": "when decided, RFC 3339"
+        },
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--name",
+          "type": "string",
+          "description": "new name"
+        },
+        {
+          "name": "--next-step",
+          "type": "string",
+          "description": "what happens next"
+        },
+        {
+          "name": "--outcome",
+          "type": "string",
+          "description": "outcome note"
+        },
+        {
+          "name": "--owner",
+          "type": "string",
+          "description": "who owns this"
+        },
+        {
+          "name": "--prize",
+          "type": "float64",
+          "description": "prize/value amount",
+          "default": "0"
+        },
+        {
+          "name": "--project",
+          "type": "string",
+          "description": "project id this supports"
+        },
+        {
+          "name": "--reject-reason",
+          "type": "string",
+          "description": "correct the recorded reject reason (does not change stage)"
+        },
+        {
+          "name": "--submitted-at",
+          "type": "string",
+          "description": "when submitted, RFC 3339"
+        }
+      ]
+    },
+    {
+      "name": "app.win",
+      "invoke": "mycontext app win <id> [flags]",
+      "summary": "Mark an application won",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        }
+      ]
+    },
+    {
+      "name": "app.withdraw",
+      "invoke": "mycontext app withdraw <id> [flags]",
+      "summary": "Mark an application withdrawn",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        }
+      ]
+    },
+    {
       "name": "area.create",
       "invoke": "mycontext area create <name> [flags]",
       "summary": "Create an area",
@@ -112,6 +570,13 @@
       ]
     },
     {
+      "name": "biz.quality",
+      "invoke": "mycontext biz quality",
+      "summary": "Business-record inconsistencies, stated as facts",
+      "long": "List business-record inconsistencies.\n\nEvery row states a fact and none of them is corrected automatically: a contract whose instalments do not add up to its declared amount is reported here, and the declared amount is left exactly as written. Deciding which number is wrong is the user's call, not the system's.",
+      "write": false
+    },
+    {
       "name": "capacity.set",
       "invoke": "mycontext capacity set <YYYY-MM-DD> <minutes> [flags]",
       "summary": "Declare how many minutes a day actually has",
@@ -135,6 +600,432 @@
       ]
     },
     {
+      "name": "contact.create",
+      "invoke": "mycontext contact create <name> [flags]",
+      "summary": "Add a person at an account",
+      "write": true,
+      "arguments": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--account",
+          "type": "string",
+          "description": "account id this person belongs to (required)"
+        },
+        {
+          "name": "--email",
+          "type": "string",
+          "description": "email"
+        },
+        {
+          "name": "--legacy-ref",
+          "type": "string",
+          "description": "reference into the legacy data source"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--phone",
+          "type": "string",
+          "description": "phone"
+        },
+        {
+          "name": "--role",
+          "type": "string",
+          "description": "decider|influencer|user|gatekeeper"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "active|inactive|left|archived (default active)"
+        },
+        {
+          "name": "--title",
+          "type": "string",
+          "description": "job title"
+        },
+        {
+          "name": "--wechat",
+          "type": "string",
+          "description": "wechat id"
+        }
+      ]
+    },
+    {
+      "name": "contact.get",
+      "invoke": "mycontext contact get <id>",
+      "summary": "Show one contact",
+      "write": false,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "contact.list",
+      "invoke": "mycontext contact list [flags]",
+      "summary": "List contacts, newest first",
+      "write": false,
+      "flags": [
+        {
+          "name": "--account",
+          "type": "string",
+          "description": "filter by account id"
+        },
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "200"
+        },
+        {
+          "name": "--search",
+          "type": "string",
+          "description": "match name"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "filter by status"
+        }
+      ]
+    },
+    {
+      "name": "contact.update",
+      "invoke": "mycontext contact update <id> [flags]",
+      "summary": "Patch a contact (requires --expected-version)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--account",
+          "type": "string",
+          "description": "move to a different account id"
+        },
+        {
+          "name": "--email",
+          "type": "string",
+          "description": "email"
+        },
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--name",
+          "type": "string",
+          "description": "new name"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--phone",
+          "type": "string",
+          "description": "phone"
+        },
+        {
+          "name": "--role",
+          "type": "string",
+          "description": "decider|influencer|user|gatekeeper"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "active|inactive|left|archived"
+        },
+        {
+          "name": "--title",
+          "type": "string",
+          "description": "job title"
+        },
+        {
+          "name": "--wechat",
+          "type": "string",
+          "description": "wechat id"
+        }
+      ]
+    },
+    {
+      "name": "contract.create",
+      "invoke": "mycontext contract create <name> [flags]",
+      "summary": "Record contractual income (declared amount is authoritative, never derived)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--account",
+          "type": "string",
+          "description": "account id (required)"
+        },
+        {
+          "name": "--amount",
+          "type": "float64",
+          "description": "contract amount, the authoritative number (required)",
+          "default": "0"
+        },
+        {
+          "name": "--application",
+          "type": "string",
+          "description": "won application this comes from"
+        },
+        {
+          "name": "--contract-no",
+          "type": "string",
+          "description": "external contract number"
+        },
+        {
+          "name": "--currency",
+          "type": "string",
+          "description": "currency code (default CNY)"
+        },
+        {
+          "name": "--end",
+          "type": "string",
+          "description": "window end, YYYY-MM-DD"
+        },
+        {
+          "name": "--kind",
+          "type": "string",
+          "description": "sales|prize|sponsorship|grant|piecework|other (default sales)"
+        },
+        {
+          "name": "--legacy-ref",
+          "type": "string",
+          "description": "reference into the legacy data source"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--opportunity",
+          "type": "string",
+          "description": "won opportunity this comes from"
+        },
+        {
+          "name": "--payment-terms",
+          "type": "string",
+          "description": "payment terms"
+        },
+        {
+          "name": "--quantity",
+          "type": "float64",
+          "description": "piecework: quantity (extra column, never reconciled against amount)",
+          "default": "0"
+        },
+        {
+          "name": "--sign-date",
+          "type": "string",
+          "description": "sign date, YYYY-MM-DD"
+        },
+        {
+          "name": "--start",
+          "type": "string",
+          "description": "window start, YYYY-MM-DD"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "draft|signed|active|completed|terminated (default draft)"
+        },
+        {
+          "name": "--unit-price",
+          "type": "float64",
+          "description": "piecework: price per unit (extra column, never reconciled against amount)",
+          "default": "0"
+        }
+      ]
+    },
+    {
+      "name": "contract.get",
+      "invoke": "mycontext contract get <id>",
+      "summary": "Show one contract",
+      "write": false,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "contract.list",
+      "invoke": "mycontext contract list [flags]",
+      "summary": "List contracts, most recently signed first",
+      "write": false,
+      "flags": [
+        {
+          "name": "--account",
+          "type": "string",
+          "description": "filter by account id"
+        },
+        {
+          "name": "--kind",
+          "type": "string",
+          "description": "filter by kind"
+        },
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "200"
+        },
+        {
+          "name": "--search",
+          "type": "string",
+          "description": "match name"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "filter by status"
+        }
+      ]
+    },
+    {
+      "name": "contract.sign",
+      "invoke": "mycontext contract sign <id> [flags]",
+      "summary": "Mark a contract signed as of a date (requires --expected-version)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--date",
+          "type": "string",
+          "description": "sign date, YYYY-MM-DD (required)"
+        },
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before signing (required)",
+          "default": "0"
+        }
+      ]
+    },
+    {
+      "name": "contract.update",
+      "invoke": "mycontext contract update <id> [flags]",
+      "summary": "Patch a contract (requires --expected-version; never reconciles amount against plans/receipts)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--account",
+          "type": "string",
+          "description": "move to account id (a signed contract may not move accounts)"
+        },
+        {
+          "name": "--amount",
+          "type": "float64",
+          "description": "contract amount, the authoritative number",
+          "default": "0"
+        },
+        {
+          "name": "--contract-no",
+          "type": "string",
+          "description": "external contract number"
+        },
+        {
+          "name": "--currency",
+          "type": "string",
+          "description": "currency code"
+        },
+        {
+          "name": "--end",
+          "type": "string",
+          "description": "window end, YYYY-MM-DD"
+        },
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing (required)",
+          "default": "0"
+        },
+        {
+          "name": "--kind",
+          "type": "string",
+          "description": "sales|prize|sponsorship|grant|piecework|other"
+        },
+        {
+          "name": "--name",
+          "type": "string",
+          "description": "new name"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--payment-terms",
+          "type": "string",
+          "description": "payment terms"
+        },
+        {
+          "name": "--quantity",
+          "type": "float64",
+          "description": "piecework: quantity",
+          "default": "0"
+        },
+        {
+          "name": "--sign-date",
+          "type": "string",
+          "description": "sign date, YYYY-MM-DD"
+        },
+        {
+          "name": "--start",
+          "type": "string",
+          "description": "window start, YYYY-MM-DD"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "draft|signed|active|completed|terminated (signed/etc require sign_date)"
+        },
+        {
+          "name": "--unit-price",
+          "type": "float64",
+          "description": "piecework: price per unit",
+          "default": "0"
+        }
+      ]
+    },
+    {
       "name": "dep.add",
       "invoke": "mycontext dep add <from-id> <to-id> [flags]",
       "summary": "Record that one node blocks, requires, supports or relates to another",
@@ -153,7 +1044,7 @@
         {
           "name": "--from-type",
           "type": "string",
-          "description": "objective|key_result|initiative|project|task",
+          "description": "account|application|campaign|channel|contact|content_piece|contract|document|initiative|key_result|milestone|objective|opportunity|product|project|release|task|ticket",
           "default": "task"
         },
         {
@@ -170,7 +1061,7 @@
         {
           "name": "--to-type",
           "type": "string",
-          "description": "objective|key_result|initiative|project|task",
+          "description": "account|application|campaign|channel|contact|content_piece|contract|document|initiative|key_result|milestone|objective|opportunity|product|project|release|task|ticket",
           "default": "task"
         },
         {
@@ -209,6 +1100,195 @@
           "name": "--type",
           "type": "string",
           "description": "filter by dependency type"
+        }
+      ]
+    },
+    {
+      "name": "doc.add",
+      "invoke": "mycontext doc add <title> [flags]",
+      "summary": "Record a document and optionally index its text",
+      "write": true,
+      "arguments": [
+        {
+          "name": "title",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--author",
+          "type": "string",
+          "description": "who wrote it"
+        },
+        {
+          "name": "--body-file",
+          "type": "string",
+          "description": "read text from this file and index it, so the document is findable by content"
+        },
+        {
+          "name": "--captured",
+          "type": "string",
+          "description": "when it entered the library, YYYY-MM-DD"
+        },
+        {
+          "name": "--change-note",
+          "type": "string",
+          "description": "what changed in this version"
+        },
+        {
+          "name": "--file-role",
+          "type": "string",
+          "description": "original|rendition|attachment"
+        },
+        {
+          "name": "--kind",
+          "type": "string",
+          "description": "dossier|meeting_note|contract_doc|proposal|content_draft|release_note|decision|report|other"
+        },
+        {
+          "name": "--mime",
+          "type": "string",
+          "description": "MIME type of the original"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "why this was kept"
+        },
+        {
+          "name": "--occurred",
+          "type": "string",
+          "description": "when the thing it records happened, YYYY-MM-DD"
+        },
+        {
+          "name": "--path",
+          "type": "string",
+          "description": "path of the original file, relative to the library root"
+        },
+        {
+          "name": "--review",
+          "type": "string",
+          "description": "when to look at it again, YYYY-MM-DD"
+        },
+        {
+          "name": "--sha256",
+          "type": "string",
+          "description": "sha256 of the original bytes"
+        },
+        {
+          "name": "--source",
+          "type": "string",
+          "description": "where it came from"
+        },
+        {
+          "name": "--supersedes",
+          "type": "string",
+          "description": "the document version this replaces"
+        },
+        {
+          "name": "--url",
+          "type": "string",
+          "description": "canonical URL, for external material"
+        }
+      ]
+    },
+    {
+      "name": "doc.index",
+      "invoke": "mycontext doc index <document-id> [flags]",
+      "summary": "Index a document's text so it can be found by content",
+      "write": true,
+      "arguments": [
+        {
+          "name": "document-id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--body-file",
+          "type": "string",
+          "description": "file to read the text from (required)"
+        }
+      ]
+    },
+    {
+      "name": "doc.link",
+      "invoke": "mycontext doc link <document-id> [flags]",
+      "summary": "Attach a document to a business object",
+      "write": true,
+      "arguments": [
+        {
+          "name": "document-id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--as",
+          "type": "string",
+          "description": "dossier|minutes|evidence|attachment|deliverable"
+        },
+        {
+          "name": "--entity",
+          "type": "string",
+          "description": "id of the object to attach it to"
+        },
+        {
+          "name": "--entity-type",
+          "type": "string",
+          "description": "account|application|campaign|channel|contact|content_piece|contract|document|initiative|key_result|milestone|objective|opportunity|product|project|release|task|ticket"
+        }
+      ]
+    },
+    {
+      "name": "doc.list",
+      "invoke": "mycontext doc list [flags]",
+      "summary": "List documents",
+      "write": false,
+      "flags": [
+        {
+          "name": "--kind",
+          "type": "string",
+          "description": "filter by kind"
+        },
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "0"
+        },
+        {
+          "name": "--search",
+          "type": "string",
+          "description": "match against the title"
+        }
+      ]
+    },
+    {
+      "name": "doc.reindex",
+      "invoke": "mycontext doc reindex",
+      "summary": "List documents whose text is not in the search index",
+      "long": "List documents that have an original file but no indexed text.\n\nThey are still findable by title and metadata, just not by content. Re-indexing needs the file's text, so this reports what to feed back through `doc index` rather than reading the library itself.",
+      "write": false
+    },
+    {
+      "name": "doc.search",
+      "invoke": "mycontext doc search <query> [flags]",
+      "summary": "Find documents by content",
+      "long": "Find documents by content.\n\nQueries of three characters or more use the FTS5 trigram index. Shorter queries cannot form a trigram, so they fall back to a slower scan - which is how a two-character name like 杨总 is found at all. The result reports which path answered.",
+      "write": false,
+      "arguments": [
+        {
+          "name": "query",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum hits",
+          "default": "0"
         }
       ]
     },
@@ -296,6 +1376,73 @@
           "name": "--start",
           "type": "string",
           "description": "start date, YYYY-MM-DD"
+        }
+      ]
+    },
+    {
+      "name": "interaction.list",
+      "invoke": "mycontext interaction list <subject-type> <subject-id> [flags]",
+      "summary": "List the conversation history for one subject, newest first",
+      "write": false,
+      "arguments": [
+        {
+          "name": "subject-type",
+          "required": true
+        },
+        {
+          "name": "subject-id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "200"
+        }
+      ]
+    },
+    {
+      "name": "interaction.log",
+      "invoke": "mycontext interaction log <subject-type> <subject-id> [flags]",
+      "summary": "Record that a conversation happened (subject_type is one of: account|application|campaign|channel|contact|content_piece|contract|document|initiative|key_result|milestone|objective|opportunity|product|project|release|task|ticket)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "subject-type",
+          "required": true
+        },
+        {
+          "name": "subject-id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--at",
+          "type": "string",
+          "description": "when it happened, RFC 3339 (required)"
+        },
+        {
+          "name": "--channel",
+          "type": "string",
+          "description": "meeting|call|im|email|visit (default meeting)"
+        },
+        {
+          "name": "--owner",
+          "type": "string",
+          "description": "who logged this"
+        },
+        {
+          "name": "--participants",
+          "type": "string",
+          "description": "who was there"
+        },
+        {
+          "name": "--summary",
+          "type": "string",
+          "description": "what was discussed"
         }
       ]
     },
@@ -396,6 +1543,75 @@
           "type": "float64",
           "description": "share of the objective, 0..1",
           "default": "0"
+        }
+      ]
+    },
+    {
+      "name": "metric.record",
+      "invoke": "mycontext metric record <subject-id> [flags]",
+      "summary": "Record one observation of a metric",
+      "write": true,
+      "arguments": [
+        {
+          "name": "subject-id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--at",
+          "type": "string",
+          "description": "when it was observed, YYYY-MM-DD"
+        },
+        {
+          "name": "--name",
+          "type": "string",
+          "description": "what is being measured"
+        },
+        {
+          "name": "--source",
+          "type": "string",
+          "description": "where the number came from"
+        },
+        {
+          "name": "--subject-type",
+          "type": "string",
+          "description": "account|application|campaign|channel|contact|content_piece|contract|document|initiative|key_result|milestone|objective|opportunity|product|project|release|task|ticket"
+        },
+        {
+          "name": "--unit",
+          "type": "string",
+          "description": "unit of the value"
+        },
+        {
+          "name": "--value",
+          "type": "float64",
+          "description": "the observed value",
+          "default": "0"
+        }
+      ]
+    },
+    {
+      "name": "metric.trend",
+      "invoke": "mycontext metric trend <subject-id> [flags]",
+      "summary": "Show a metric's observations over time",
+      "write": false,
+      "arguments": [
+        {
+          "name": "subject-id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--name",
+          "type": "string",
+          "description": "metric to show"
+        },
+        {
+          "name": "--subject-type",
+          "type": "string",
+          "description": "account|application|campaign|channel|contact|content_piece|contract|document|initiative|key_result|milestone|objective|opportunity|product|project|release|task|ticket"
         }
       ]
     },
@@ -616,11 +1832,489 @@
       ]
     },
     {
+      "name": "opp.advance",
+      "invoke": "mycontext opp advance <id> [flags]",
+      "summary": "Move an opportunity to a stage (leaving won/lost requires --reason)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--to",
+          "type": "string",
+          "description": "lead|qualified|proposal|negotiation|won|lost (required)"
+        }
+      ]
+    },
+    {
+      "name": "opp.create",
+      "invoke": "mycontext opp create <name> [flags]",
+      "summary": "Record a possible deal",
+      "write": true,
+      "arguments": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--account",
+          "type": "string",
+          "description": "account id (required)"
+        },
+        {
+          "name": "--amount",
+          "type": "float64",
+          "description": "estimated deal amount",
+          "default": "0"
+        },
+        {
+          "name": "--area",
+          "type": "string",
+          "description": "area id"
+        },
+        {
+          "name": "--contact",
+          "type": "string",
+          "description": "primary contact id"
+        },
+        {
+          "name": "--legacy-ref",
+          "type": "string",
+          "description": "reference into the legacy data source"
+        },
+        {
+          "name": "--lost-reason",
+          "type": "string",
+          "description": "why lost (required if --stage lost)"
+        },
+        {
+          "name": "--next-step",
+          "type": "string",
+          "description": "what happens next"
+        },
+        {
+          "name": "--owner",
+          "type": "string",
+          "description": "who owns this deal"
+        },
+        {
+          "name": "--probability",
+          "type": "float64",
+          "description": "win probability, 0-1",
+          "default": "0"
+        },
+        {
+          "name": "--sign-date",
+          "type": "string",
+          "description": "expected sign date, YYYY-MM-DD"
+        },
+        {
+          "name": "--source",
+          "type": "string",
+          "description": "where this came from"
+        },
+        {
+          "name": "--source-batch",
+          "type": "string",
+          "description": "import/source batch tag"
+        },
+        {
+          "name": "--stage",
+          "type": "string",
+          "description": "lead|qualified|proposal|negotiation|won|lost (default lead)"
+        }
+      ]
+    },
+    {
+      "name": "opp.get",
+      "invoke": "mycontext opp get <id>",
+      "summary": "Show one opportunity",
+      "write": false,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "opp.list",
+      "invoke": "mycontext opp list [flags]",
+      "summary": "List opportunities, nearest expected sign date first",
+      "write": false,
+      "flags": [
+        {
+          "name": "--account",
+          "type": "string",
+          "description": "filter by account id"
+        },
+        {
+          "name": "--area",
+          "type": "string",
+          "description": "filter by area id"
+        },
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "200"
+        },
+        {
+          "name": "--open",
+          "type": "bool",
+          "description": "exclude won and lost",
+          "default": "false"
+        },
+        {
+          "name": "--search",
+          "type": "string",
+          "description": "match name"
+        },
+        {
+          "name": "--stage",
+          "type": "string",
+          "description": "filter by stage"
+        }
+      ]
+    },
+    {
+      "name": "opp.lose",
+      "invoke": "mycontext opp lose <id> [flags]",
+      "summary": "Mark an opportunity lost (requires --reason)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--reason",
+          "type": "string",
+          "description": "why it was lost (required)"
+        }
+      ]
+    },
+    {
+      "name": "opp.update",
+      "invoke": "mycontext opp update <id> [flags]",
+      "summary": "Patch an opportunity (requires --expected-version; use `opp advance|win|lose` to change stage)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--amount",
+          "type": "float64",
+          "description": "estimated deal amount",
+          "default": "0"
+        },
+        {
+          "name": "--contact",
+          "type": "string",
+          "description": "primary contact id"
+        },
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--lost-reason",
+          "type": "string",
+          "description": "correct the recorded lost reason (does not change stage)"
+        },
+        {
+          "name": "--name",
+          "type": "string",
+          "description": "new name"
+        },
+        {
+          "name": "--next-step",
+          "type": "string",
+          "description": "what happens next"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--owner",
+          "type": "string",
+          "description": "who owns this deal"
+        },
+        {
+          "name": "--probability",
+          "type": "float64",
+          "description": "win probability, 0-1",
+          "default": "0"
+        },
+        {
+          "name": "--sign-date",
+          "type": "string",
+          "description": "expected sign date, YYYY-MM-DD"
+        },
+        {
+          "name": "--source",
+          "type": "string",
+          "description": "where this came from"
+        },
+        {
+          "name": "--source-batch",
+          "type": "string",
+          "description": "import/source batch tag"
+        }
+      ]
+    },
+    {
+      "name": "opp.win",
+      "invoke": "mycontext opp win <id> [flags]",
+      "summary": "Mark an opportunity won",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        }
+      ]
+    },
+    {
       "name": "ops.status",
       "invoke": "mycontext ops status",
       "summary": "Today, tomorrow, the week, overdue, reviews and overload",
       "long": "Reports facts only: counts, planned minutes, available minutes and\noverload. It never reorders your priorities or suggests what to drop.",
       "write": false
+    },
+    {
+      "name": "plan.list",
+      "invoke": "mycontext plan list [flags]",
+      "summary": "List one contract's receivable instalments, in sequence",
+      "write": false,
+      "flags": [
+        {
+          "name": "--contract",
+          "type": "string",
+          "description": "contract id (required)"
+        }
+      ]
+    },
+    {
+      "name": "plan.set",
+      "invoke": "mycontext plan set [flags]",
+      "summary": "Declare an instalment of a contract's expected income (same seq again corrects it in place)",
+      "write": true,
+      "flags": [
+        {
+          "name": "--amount",
+          "type": "float64",
+          "description": "instalment amount (required, never reconciled against contract.amount)",
+          "default": "0"
+        },
+        {
+          "name": "--condition",
+          "type": "string",
+          "description": "condition attached to this instalment"
+        },
+        {
+          "name": "--contract",
+          "type": "string",
+          "description": "contract id (required)"
+        },
+        {
+          "name": "--due",
+          "type": "string",
+          "description": "due date, YYYY-MM-DD (required)"
+        },
+        {
+          "name": "--seq",
+          "type": "int",
+          "description": "instalment sequence number, from 1 (required)",
+          "default": "0"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "planned|invoiced|received|waived (default planned)"
+        }
+      ]
+    },
+    {
+      "name": "product.create",
+      "invoke": "mycontext product create <name> [flags]",
+      "summary": "Register a product, service or solution",
+      "write": true,
+      "arguments": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--kind",
+          "type": "string",
+          "description": "product|service|solution (default product)"
+        },
+        {
+          "name": "--launch-date",
+          "type": "string",
+          "description": "launch date, YYYY-MM-DD"
+        },
+        {
+          "name": "--owner",
+          "type": "string",
+          "description": "owner"
+        },
+        {
+          "name": "--positioning",
+          "type": "string",
+          "description": "positioning"
+        },
+        {
+          "name": "--repo",
+          "type": "string",
+          "description": "repository URL"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "concept|developing|released|maintained|sunset (default concept)"
+        }
+      ]
+    },
+    {
+      "name": "product.get",
+      "invoke": "mycontext product get <id>",
+      "summary": "Show one product",
+      "write": false,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "product.list",
+      "invoke": "mycontext product list [flags]",
+      "summary": "List products, newest activity first",
+      "write": false,
+      "flags": [
+        {
+          "name": "--kind",
+          "type": "string",
+          "description": "filter by kind"
+        },
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "200"
+        },
+        {
+          "name": "--search",
+          "type": "string",
+          "description": "match name"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "filter by status"
+        }
+      ]
+    },
+    {
+      "name": "product.update",
+      "invoke": "mycontext product update <id> [flags]",
+      "summary": "Patch a product (requires --expected-version)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing (required)",
+          "default": "0"
+        },
+        {
+          "name": "--kind",
+          "type": "string",
+          "description": "product|service|solution"
+        },
+        {
+          "name": "--launch-date",
+          "type": "string",
+          "description": "launch date, YYYY-MM-DD"
+        },
+        {
+          "name": "--name",
+          "type": "string",
+          "description": "new name"
+        },
+        {
+          "name": "--owner",
+          "type": "string",
+          "description": "owner"
+        },
+        {
+          "name": "--positioning",
+          "type": "string",
+          "description": "positioning"
+        },
+        {
+          "name": "--release",
+          "type": "string",
+          "description": "current release id"
+        },
+        {
+          "name": "--repo",
+          "type": "string",
+          "description": "repository URL"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "concept|developing|released|maintained|sunset"
+        }
+      ]
     },
     {
       "name": "project.create",
@@ -881,6 +2575,94 @@
       ]
     },
     {
+      "name": "receipt.list",
+      "invoke": "mycontext receipt list [flags]",
+      "summary": "List receipts recorded against one contract, newest first",
+      "write": false,
+      "flags": [
+        {
+          "name": "--contract",
+          "type": "string",
+          "description": "contract id (required)"
+        }
+      ]
+    },
+    {
+      "name": "receipt.record",
+      "invoke": "mycontext receipt record [flags]",
+      "summary": "Log money that arrived against a contract (never marks a plan received or adjusts amount)",
+      "write": true,
+      "flags": [
+        {
+          "name": "--amount",
+          "type": "float64",
+          "description": "amount received (required, never reconciled against contract.amount)",
+          "default": "0"
+        },
+        {
+          "name": "--at",
+          "type": "string",
+          "description": "when it arrived, RFC 3339 with timezone (required)"
+        },
+        {
+          "name": "--contract",
+          "type": "string",
+          "description": "contract id (required)"
+        },
+        {
+          "name": "--method",
+          "type": "string",
+          "description": "how it arrived"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--plan",
+          "type": "string",
+          "description": "receivable plan id this receipt applies to (an unplanned payment is still a payment)"
+        }
+      ]
+    },
+    {
+      "name": "receivable.list",
+      "invoke": "mycontext receivable list [flags]",
+      "summary": "List outstanding balances by contract, or open instalments with --aging",
+      "write": false,
+      "flags": [
+        {
+          "name": "--account",
+          "type": "string",
+          "description": "filter by account id"
+        },
+        {
+          "name": "--aging",
+          "type": "bool",
+          "description": "show open instalments bucketed by days overdue (v_receivable_aging) instead of per-contract balances",
+          "default": "false"
+        },
+        {
+          "name": "--contract",
+          "type": "string",
+          "description": "filter by contract id"
+        },
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "200"
+        },
+        {
+          "name": "--overdue",
+          "type": "bool",
+          "description": "with --aging, only instalments already past due (v_receivable_overdue)",
+          "default": "false"
+        }
+      ]
+    },
+    {
       "name": "schedule.day",
       "invoke": "mycontext schedule day [YYYY-MM-DD]",
       "summary": "One day's agenda and load",
@@ -1064,7 +2846,7 @@
         {
           "name": "--entity-type",
           "type": "string",
-          "description": "objective|key_result|initiative|project|task",
+          "description": "account|application|campaign|channel|contact|content_piece|contract|document|initiative|key_result|milestone|objective|opportunity|product|project|release|task|ticket",
           "default": "task"
         },
         {
@@ -1417,6 +3199,180 @@
           "name": "--waiting-for",
           "type": "string",
           "description": "person or condition"
+        }
+      ]
+    },
+    {
+      "name": "ticket.close",
+      "invoke": "mycontext ticket close <id> [flags]",
+      "summary": "Close a ticket (requires --expected-version; resolution is a note, not a gate)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before closing (required)",
+          "default": "0"
+        },
+        {
+          "name": "--resolution",
+          "type": "string",
+          "description": "how it was resolved"
+        }
+      ]
+    },
+    {
+      "name": "ticket.list",
+      "invoke": "mycontext ticket list [flags]",
+      "summary": "List tickets, oldest open first",
+      "write": false,
+      "flags": [
+        {
+          "name": "--account",
+          "type": "string",
+          "description": "filter by account id"
+        },
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "200"
+        },
+        {
+          "name": "--open",
+          "type": "bool",
+          "description": "exclude closed",
+          "default": "false"
+        },
+        {
+          "name": "--search",
+          "type": "string",
+          "description": "match title"
+        },
+        {
+          "name": "--severity",
+          "type": "string",
+          "description": "filter by severity"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "filter by status"
+        }
+      ]
+    },
+    {
+      "name": "ticket.open",
+      "invoke": "mycontext ticket open <title> [flags]",
+      "summary": "Open a service ticket",
+      "write": true,
+      "arguments": [
+        {
+          "name": "title",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--account",
+          "type": "string",
+          "description": "account id (required)"
+        },
+        {
+          "name": "--assignee",
+          "type": "string",
+          "description": "assignee"
+        },
+        {
+          "name": "--at",
+          "type": "string",
+          "description": "when it was opened, RFC 3339 with timezone (required)"
+        },
+        {
+          "name": "--contract",
+          "type": "string",
+          "description": "related contract id"
+        },
+        {
+          "name": "--kind",
+          "type": "string",
+          "description": "question|incident|change_request|training|other (default question)"
+        },
+        {
+          "name": "--project",
+          "type": "string",
+          "description": "related project id"
+        },
+        {
+          "name": "--severity",
+          "type": "string",
+          "description": "S1|S2|S3|S4 (default S3)"
+        }
+      ]
+    },
+    {
+      "name": "ticket.update",
+      "invoke": "mycontext ticket update <id> [flags]",
+      "summary": "Patch a ticket (requires --expected-version)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--assignee",
+          "type": "string",
+          "description": "assignee"
+        },
+        {
+          "name": "--contract",
+          "type": "string",
+          "description": "move to contract id"
+        },
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing (required)",
+          "default": "0"
+        },
+        {
+          "name": "--kind",
+          "type": "string",
+          "description": "question|incident|change_request|training|other"
+        },
+        {
+          "name": "--project",
+          "type": "string",
+          "description": "move to project id"
+        },
+        {
+          "name": "--resolution",
+          "type": "string",
+          "description": "how it was, or is being, resolved"
+        },
+        {
+          "name": "--severity",
+          "type": "string",
+          "description": "S1|S2|S3|S4"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "open|in_progress|waiting|resolved|closed"
+        },
+        {
+          "name": "--title",
+          "type": "string",
+          "description": "new title"
         }
       ]
     },

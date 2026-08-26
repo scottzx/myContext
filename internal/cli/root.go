@@ -59,6 +59,23 @@ func Execute(args []string) int {
 		newTagCmd(opts),
 		newImportCmd(opts),
 		newUICmd(opts),
+
+		// 005/006 business core: the counterparty chain, then the objects the
+		// non-consulting lines produce, then the cross-cutting layers.
+		newAccountCmd(opts),
+		newContactCmd(opts),
+		newOpportunityCmd(opts),
+		newApplicationCmd(opts),
+		newInteractionCmd(opts),
+		newContractCmd(opts),
+		newPlanCmd(opts),
+		newReceiptCmd(opts),
+		newReceivableCmd(opts),
+		newProductCmd(opts),
+		newTicketCmd(opts),
+		newDocCmd(opts),
+		newMetricCmd(opts),
+		newBizCmd(opts),
 	)
 	// Registered last: it describes the tree that now exists.
 	root.AddCommand(newCatalogCmd(opts, root))

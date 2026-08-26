@@ -61,6 +61,30 @@ var (
 	validTimeSlot        = set("morning", "afternoon", "evening")
 	validActorType       = set("user", "agent", "ui", "migration", "system")
 	validEntryPoint      = set("cli", "bridge", "http", "import")
+
+	// Business core vocabularies (005_business_core.sql). Each set is written
+	// in the same order as the SQL CHECK it mirrors, so the two can be
+	// eye-diffed.
+	validAccountType          = set("customer", "prospect", "partner", "vendor", "organizer", "media", "community", "individual")
+	validAccountStatus        = set("active", "dormant", "archived")
+	validDealRole             = set("decider", "influencer", "user", "gatekeeper")
+	validContactStatus        = set("active", "inactive", "left", "archived")
+	validOpportunityStage     = set("lead", "qualified", "proposal", "negotiation", "won", "lost")
+	validApplicationKind      = set("competition", "program", "job", "listing", "partnership")
+	validApplicationStage     = set("discovered", "preparing", "submitted", "under_review", "shortlisted", "won", "rejected", "withdrawn")
+	validContractKind         = set("sales", "prize", "sponsorship", "grant", "piecework", "other")
+	validContractStatus       = set("draft", "signed", "active", "completed", "terminated")
+	validReceivablePlanStatus = set("planned", "invoiced", "received", "waived")
+	validTicketKind           = set("question", "incident", "change_request", "training", "other")
+	validTicketSeverity       = set("S1", "S2", "S3", "S4")
+	validTicketStatus         = set("open", "in_progress", "waiting", "resolved", "closed")
+	validProductKind          = set("product", "service", "solution")
+	validProductStatus        = set("concept", "developing", "released", "maintained", "sunset")
+	validDocumentKind         = set("dossier", "meeting_note", "contract_doc", "proposal", "content_draft", "release_note", "decision", "report", "other")
+	validDocLinkType          = set("dossier", "minutes", "evidence", "attachment", "deliverable")
+	validDocumentFileRole     = set("original", "rendition", "attachment")
+	validContextEdgeType      = set("referred_by", "derived_from", "references", "relates_to", "inspired_by")
+	validInteractionChannel   = set("meeting", "call", "im", "email", "visit")
 )
 
 // entityTables maps an entity type to the table that owns it, so an edge or a
@@ -75,6 +99,22 @@ var entityTables = map[string]string{
 	"project":    "projects",
 	"milestone":  "milestones",
 	"task":       "tasks",
+
+	// 005_business_core.sql
+	"account":     "accounts",
+	"contact":     "contacts",
+	"opportunity": "opportunities",
+	"application": "applications",
+	"contract":    "contracts",
+	"ticket":      "service_tickets",
+	"document":    "documents",
+	"product":     "products",
+
+	// 006_content_product.sql
+	"channel":       "channels",
+	"content_piece": "content_pieces",
+	"release":       "releases",
+	"campaign":      "campaigns",
 }
 
 var validEntityType = keySet(entityTables)
@@ -336,6 +376,277 @@ type Event struct {
 	RequestID     *string `json:"request_id,omitempty"`
 	CorrelationID *string `json:"correlation_id,omitempty"`
 	OccurredAt    string  `json:"occurred_at"`
+}
+
+// ---------------------------------------------------------------------------
+// Business core (005_business_core.sql). Pointer fields mean "not set" the
+// same way Task and Project already use them; a zero value written on
+// purpose (e.g. current_value = 0) is never confused with "no value".
+// ---------------------------------------------------------------------------
+
+// Account is any external party we deal with - customer, prospect, partner,
+// vendor, competition organiser, media outlet, community or individual buyer.
+type Account struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	ShortName   *string `json:"short_name"`
+	AccountType string  `json:"account_type"`
+	Industry    *string `json:"industry"`
+	Region      *string `json:"region"`
+	Status      string  `json:"status"`
+	Owner       *string `json:"owner"`
+	Note        *string `json:"note"`
+	LegacyRef   *string `json:"legacy_ref"`
+	Version     int64   `json:"version"`
+	CreatedAt   string  `json:"created_at"`
+	UpdatedAt   string  `json:"updated_at"`
+}
+
+// Contact is a person at an account. It never needs an opportunity - most
+// people worth remembering never appear in a deal.
+type Contact struct {
+	ID        string  `json:"id"`
+	AccountID string  `json:"account_id"`
+	Name      string  `json:"name"`
+	Title     *string `json:"title"`
+	DealRole  *string `json:"deal_role"`
+	Phone     *string `json:"phone"`
+	Email     *string `json:"email"`
+	Wechat    *string `json:"wechat"`
+	Status    string  `json:"status"`
+	Note      *string `json:"note"`
+	LegacyRef *string `json:"legacy_ref"`
+	Version   int64   `json:"version"`
+	CreatedAt string  `json:"created_at"`
+	UpdatedAt string  `json:"updated_at"`
+}
+
+// Opportunity is a possible deal.
+type Opportunity struct {
+	ID               string   `json:"id"`
+	AccountID        string   `json:"account_id"`
+	AreaID           *string  `json:"area_id"`
+	PrimaryContactID *string  `json:"primary_contact_id"`
+	Name             string   `json:"name"`
+	Source           *string  `json:"source"`
+	SourceBatch      *string  `json:"source_batch"`
+	Stage            string   `json:"stage"`
+	EstAmount        *float64 `json:"est_amount"`
+	WinProbability   *float64 `json:"win_probability"`
+	ExpectedSignDate *string  `json:"expected_sign_date"`
+	Owner            *string  `json:"owner"`
+	NextStep         *string  `json:"next_step"`
+	LostReason       *string  `json:"lost_reason"`
+	ClosedAt         *string  `json:"closed_at"`
+	Note             *string  `json:"note"`
+	LegacyRef        *string  `json:"legacy_ref"`
+	Version          int64    `json:"version"`
+	CreatedAt        string   `json:"created_at"`
+	UpdatedAt        string   `json:"updated_at"`
+}
+
+// Application is something we apply to and someone else decides: a
+// competition, an ecosystem programme, a job, a directory listing.
+type Application struct {
+	ID           string   `json:"id"`
+	AreaID       *string  `json:"area_id"`
+	AccountID    *string  `json:"account_id"`
+	ProjectID    *string  `json:"project_id"`
+	Name         string   `json:"name"`
+	Kind         string   `json:"kind"`
+	Stage        string   `json:"stage"`
+	SubmittedAt  *string  `json:"submitted_at"`
+	DecidedAt    *string  `json:"decided_at"`
+	PrizeAmount  *float64 `json:"prize_amount"`
+	OutcomeNote  *string  `json:"outcome_note"`
+	RejectReason *string  `json:"reject_reason"`
+	Owner        *string  `json:"owner"`
+	NextStep     *string  `json:"next_step"`
+	LegacyRef    *string  `json:"legacy_ref"`
+	Version      int64    `json:"version"`
+	CreatedAt    string   `json:"created_at"`
+	UpdatedAt    string   `json:"updated_at"`
+}
+
+// Contract is contractual income of every kind - a sale, a prize, a
+// sponsored post, a grant, piecework. Amount is always the authoritative
+// figure; it is never adjusted to match receivable_plans or receipts.
+type Contract struct {
+	ID            string   `json:"id"`
+	AccountID     string   `json:"account_id"`
+	OpportunityID *string  `json:"opportunity_id"`
+	ApplicationID *string  `json:"application_id"`
+	Kind          string   `json:"kind"`
+	ContractNo    *string  `json:"contract_no"`
+	Name          string   `json:"name"`
+	SignDate      *string  `json:"sign_date"`
+	StartDate     *string  `json:"start_date"`
+	EndDate       *string  `json:"end_date"`
+	Amount        float64  `json:"amount"`
+	UnitPrice     *float64 `json:"unit_price"`
+	Quantity      *float64 `json:"quantity"`
+	Currency      string   `json:"currency"`
+	Status        string   `json:"status"`
+	PaymentTerms  *string  `json:"payment_terms"`
+	Note          *string  `json:"note"`
+	LegacyRef     *string  `json:"legacy_ref"`
+	Version       int64    `json:"version"`
+	CreatedAt     string   `json:"created_at"`
+	UpdatedAt     string   `json:"updated_at"`
+}
+
+// ReceivablePlan is when a slice of a contract's money is supposed to
+// arrive. Its sum is deliberately not constrained to equal contracts.amount.
+type ReceivablePlan struct {
+	ID            string  `json:"id"`
+	ContractID    string  `json:"contract_id"`
+	Seq           int     `json:"seq"`
+	DueDate       string  `json:"due_date"`
+	Amount        float64 `json:"amount"`
+	ConditionNote *string `json:"condition_note"`
+	Status        string  `json:"status"`
+	Version       int64   `json:"version"`
+	CreatedAt     string  `json:"created_at"`
+	UpdatedAt     string  `json:"updated_at"`
+}
+
+// Receipt is money that actually arrived. PlanID is nullable on purpose: an
+// unplanned payment is still a payment.
+type Receipt struct {
+	ID         string  `json:"id"`
+	ContractID string  `json:"contract_id"`
+	PlanID     *string `json:"plan_id"`
+	ReceivedAt string  `json:"received_at"`
+	Amount     float64 `json:"amount"`
+	Method     *string `json:"method"`
+	Note       *string `json:"note"`
+	CreatedAt  string  `json:"created_at"`
+}
+
+// ServiceTicket is what happens after delivery.
+type ServiceTicket struct {
+	ID         string  `json:"id"`
+	AccountID  string  `json:"account_id"`
+	ContractID *string `json:"contract_id"`
+	ProjectID  *string `json:"project_id"`
+	Title      string  `json:"title"`
+	OpenedAt   string  `json:"opened_at"`
+	Kind       string  `json:"kind"`
+	Severity   string  `json:"severity"`
+	Status     string  `json:"status"`
+	Assignee   *string `json:"assignee"`
+	ClosedAt   *string `json:"closed_at"`
+	Resolution *string `json:"resolution"`
+	Version    int64   `json:"version"`
+	CreatedAt  string  `json:"created_at"`
+	UpdatedAt  string  `json:"updated_at"`
+}
+
+// Interaction is a conversation that happened, hanging off whatever it was
+// about through subject_type/subject_id.
+type Interaction struct {
+	ID           string  `json:"id"`
+	SubjectType  string  `json:"subject_type"`
+	SubjectID    string  `json:"subject_id"`
+	OccurredAt   string  `json:"occurred_at"`
+	Channel      string  `json:"channel"`
+	Summary      *string `json:"summary"`
+	Participants *string `json:"participants"`
+	Owner        *string `json:"owner"`
+	CreatedAt    string  `json:"created_at"`
+}
+
+// Product is the hub of all three business lines: a contract sells one, a
+// content piece promotes one, a release iterates one.
+type Product struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Kind        string  `json:"kind"`
+	Status      string  `json:"status"`
+	Positioning *string `json:"positioning"`
+	RepoURL     *string `json:"repo_url"`
+	Owner       *string `json:"owner"`
+	// Added by 006: the release currently shipping, and the day the product
+	// first reached users. Both stay nil until there is a release to point at.
+	CurrentReleaseID *string `json:"current_release_id"`
+	LaunchDate       *string `json:"launch_date"`
+	Version          int64   `json:"version"`
+	CreatedAt        string  `json:"created_at"`
+	UpdatedAt        string  `json:"updated_at"`
+}
+
+// Document is one version of one artefact. It stores no path - the bytes are
+// DocumentFile rows, because one deliverable routinely has several files.
+type Document struct {
+	ID           string  `json:"id"`
+	Kind         string  `json:"kind"`
+	Title        string  `json:"title"`
+	OccurredAt   *string `json:"occurred_at"`
+	CapturedAt   *string `json:"captured_at"`
+	ReviewAt     *string `json:"review_at"`
+	LineageID    string  `json:"lineage_id"`
+	SupersedesID *string `json:"supersedes_id"`
+	ChangeNote   *string `json:"change_note"`
+	Source       *string `json:"source"`
+	AuthorName   *string `json:"author_name"`
+	CanonicalURL *string `json:"canonical_url"`
+	UserNote     *string `json:"user_note"`
+	LegacyRef    *string `json:"legacy_ref"`
+	Version      int64   `json:"version"`
+	CreatedAt    string  `json:"created_at"`
+	UpdatedAt    string  `json:"updated_at"`
+}
+
+// DocumentFile is one file on disk belonging to a document. Exactly one file
+// per document may carry role 'original'.
+type DocumentFile struct {
+	ID        string  `json:"id"`
+	DocID     string  `json:"doc_id"`
+	RelPath   string  `json:"rel_path"`
+	Mime      *string `json:"mime"`
+	SizeBytes *int64  `json:"size_bytes"`
+	SHA256    *string `json:"sha256"`
+	Role      string  `json:"role"`
+	SortOrder int     `json:"sort_order"`
+	CreatedAt string  `json:"created_at"`
+}
+
+// DocLink hangs a document off any business object.
+type DocLink struct {
+	ID         string `json:"id"`
+	DocID      string `json:"doc_id"`
+	EntityType string `json:"entity_type"`
+	EntityID   string `json:"entity_id"`
+	LinkType   string `json:"link_type"`
+	CreatedAt  string `json:"created_at"`
+}
+
+// MetricSample is any number, about anything, over time.
+type MetricSample struct {
+	ID          string  `json:"id"`
+	SubjectType string  `json:"subject_type"`
+	SubjectID   string  `json:"subject_id"`
+	MetricName  string  `json:"metric_name"`
+	SampledAt   string  `json:"sampled_at"`
+	Value       float64 `json:"value"`
+	Unit        *string `json:"unit"`
+	Source      *string `json:"source"`
+	Note        *string `json:"note"`
+	CreatedAt   string  `json:"created_at"`
+}
+
+// ContextEdge is a SOFT relation between two business objects - a referral, a
+// fork, a citation. The main chain stays on real foreign keys; this is for
+// what has nowhere else to live.
+type ContextEdge struct {
+	ID        string  `json:"id"`
+	FromType  string  `json:"from_type"`
+	FromID    string  `json:"from_id"`
+	ToType    string  `json:"to_type"`
+	ToID      string  `json:"to_id"`
+	EdgeType  string  `json:"edge_type"`
+	Note      *string `json:"note"`
+	CreatedAt string  `json:"created_at"`
 }
 
 // ---------------------------------------------------------------------------
