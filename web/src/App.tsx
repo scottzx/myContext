@@ -5,6 +5,7 @@ import type { Status, TreeArea } from "./types";
 import { CapacityBar } from "./components/CapacityBar";
 import { AgendaTable } from "./components/AgendaTable";
 import { WeekGrid } from "./components/WeekGrid";
+import { MilestoneTable } from "./components/MilestoneTable";
 import { OverdueTable } from "./components/OverdueTable";
 import { QualityList } from "./components/QualityList";
 import { ProjectTree } from "./components/ProjectTree";
@@ -69,7 +70,12 @@ export function App({ ds }: { ds: DataSource }) {
       </section>
 
       <section className="section">
-        <h2>overdue hard deadlines ({status.totals.overdue})</h2>
+        <h2>milestones through this week ({status.milestones.length})</h2>
+        <MilestoneTable entries={status.milestones} />
+      </section>
+
+      <section className="section">
+        <h2>overdue ({status.totals.overdue})</h2>
         <OverdueTable entries={status.overdue} />
       </section>
 

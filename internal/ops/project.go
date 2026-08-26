@@ -13,15 +13,19 @@ import (
 )
 
 const projectColumns = `
-    p.id, p.initiative_id, p.name, p.description, p.status, p.stage, p.importance,
-    p.target_date, p.hard_due_at, p.next_review_at, p.outcome, p.completion_criteria,
+    p.id, p.initiative_id, p.parent_project_id, p.kind, p.name, p.description,
+    p.status, p.stage, p.importance, p.target_date, p.start_date, p.end_date,
+    p.hard_due_at, p.next_review_at, p.outcome, p.completion_criteria,
+    p.metric_name, p.metric_unit, p.target_value, p.current_value,
     p.legacy_ref, p.version, p.created_at, p.updated_at, p.completed_at`
 
 func scanProject(row interface{ Scan(...any) error }) (*Project, error) {
 	var p Project
-	err := row.Scan(&p.ID, &p.InitiativeID, &p.Name, &p.Description, &p.Status, &p.Stage,
-		&p.Importance, &p.TargetDate, &p.HardDueAt, &p.NextReviewAt, &p.Outcome,
-		&p.CompletionCriteria, &p.LegacyRef, &p.Version, &p.CreatedAt, &p.UpdatedAt, &p.CompletedAt)
+	err := row.Scan(&p.ID, &p.InitiativeID, &p.ParentProjectID, &p.Kind, &p.Name, &p.Description,
+		&p.Status, &p.Stage, &p.Importance, &p.TargetDate, &p.StartDate, &p.EndDate,
+		&p.HardDueAt, &p.NextReviewAt, &p.Outcome, &p.CompletionCriteria,
+		&p.MetricName, &p.MetricUnit, &p.TargetValue, &p.CurrentValue,
+		&p.LegacyRef, &p.Version, &p.CreatedAt, &p.UpdatedAt, &p.CompletedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +97,8 @@ func (s *Store) ListProjects(ctx context.Context, f ProjectFilter) ([]*ProjectSu
 	query := `
         SELECT ` + projectColumns + `, i.name, a.name,
                (SELECT COUNT(*) FROM tasks t
-                 WHERE t.project_id = p.id AND t.status IN ('inbox','todo','doing','waiting')),
+                 WHERE t.project_id = p.id
+                   AND t.status IN ('inbox','todo','doing','waiting','paused')),
                (SELECT MIN(s.planned_date) FROM task_schedules s
                   JOIN tasks t2 ON t2.id = s.task_id
                  WHERE t2.project_id = p.id AND s.status = 'active')
@@ -120,9 +125,11 @@ func (s *Store) ListProjects(ctx context.Context, f ProjectFilter) ([]*ProjectSu
 	for rows.Next() {
 		var p Project
 		var summary ProjectSummary
-		err := rows.Scan(&p.ID, &p.InitiativeID, &p.Name, &p.Description, &p.Status, &p.Stage,
-			&p.Importance, &p.TargetDate, &p.HardDueAt, &p.NextReviewAt, &p.Outcome,
-			&p.CompletionCriteria, &p.LegacyRef, &p.Version, &p.CreatedAt, &p.UpdatedAt, &p.CompletedAt,
+		err := rows.Scan(&p.ID, &p.InitiativeID, &p.ParentProjectID, &p.Kind, &p.Name, &p.Description,
+			&p.Status, &p.Stage, &p.Importance, &p.TargetDate, &p.StartDate, &p.EndDate,
+			&p.HardDueAt, &p.NextReviewAt, &p.Outcome, &p.CompletionCriteria,
+			&p.MetricName, &p.MetricUnit, &p.TargetValue, &p.CurrentValue,
+			&p.LegacyRef, &p.Version, &p.CreatedAt, &p.UpdatedAt, &p.CompletedAt,
 			&summary.InitiativeName, &summary.AreaName, &summary.OpenTasks, &summary.NextPlannedDate)
 		if err != nil {
 			return nil, sqlite.Classify(err)
@@ -135,18 +142,27 @@ func (s *Store) ListProjects(ctx context.Context, f ProjectFilter) ([]*ProjectSu
 
 // CreateProjectInput is the payload of `project.create`.
 type CreateProjectInput struct {
-	InitiativeID       string `json:"initiative_id,omitempty"`
-	Name               string `json:"name"`
-	Description        string `json:"description,omitempty"`
-	Status             string `json:"status,omitempty"`
-	Stage              string `json:"stage,omitempty"`
-	Importance         string `json:"importance,omitempty"`
-	TargetDate         string `json:"target_date,omitempty"`
-	HardDueAt          string `json:"hard_due_at,omitempty"`
-	NextReviewAt       string `json:"next_review_at,omitempty"`
-	Outcome            string `json:"outcome,omitempty"`
-	CompletionCriteria string `json:"completion_criteria,omitempty"`
-	LegacyRef          string `json:"legacy_ref,omitempty"`
+	InitiativeID       string   `json:"initiative_id,omitempty"`
+	ParentProjectID    string   `json:"parent_project_id,omitempty"`
+	Kind               string   `json:"kind,omitempty"`
+	Name               string   `json:"name"`
+	Description        string   `json:"description,omitempty"`
+	Status             string   `json:"status,omitempty"`
+	Stage              string   `json:"stage,omitempty"`
+	Importance         string   `json:"importance,omitempty"`
+	StartDate          string   `json:"start_date,omitempty"`
+	EndDate            string   `json:"end_date,omitempty"`
+	TargetDate         string   `json:"target_date,omitempty"`
+	HardDueAt          string   `json:"hard_due_at,omitempty"`
+	NextReviewAt       string   `json:"next_review_at,omitempty"`
+	Outcome            string   `json:"outcome,omitempty"`
+	CompletionCriteria string   `json:"completion_criteria,omitempty"`
+	MetricName         string   `json:"metric_name,omitempty"`
+	MetricUnit         string   `json:"metric_unit,omitempty"`
+	TargetValue        *float64 `json:"target_value,omitempty"`
+	CurrentValue       *float64 `json:"current_value,omitempty"`
+	LegacyRef          string   `json:"legacy_ref,omitempty"`
+	SortOrder          int      `json:"sort_order,omitempty"`
 }
 
 func (in *CreateProjectInput) normalize() error {
@@ -159,6 +175,17 @@ func (in *CreateProjectInput) normalize() error {
 	if in.Importance == "" {
 		in.Importance = string(P2)
 	}
+	if in.Kind == "" {
+		in.Kind = "project"
+	}
+	if !validProjectKind[in.Kind] {
+		return protocol.BadInput("kind must be project|sprint")
+	}
+	// A sprint is a time box inside something. Without a parent it is just a
+	// project, and calling it a sprint would misdescribe it.
+	if in.Kind == "sprint" && in.ParentProjectID == "" {
+		return protocol.BadInput("a sprint requires parent_project_id")
+	}
 	if err := validateProjectStatus(in.Status); err != nil {
 		return err
 	}
@@ -168,12 +195,18 @@ func (in *CreateProjectInput) normalize() error {
 	if in.Stage != "" && !validStage[in.Stage] {
 		return protocol.BadInput("stage %q is not valid", in.Stage)
 	}
-	for field, value := range map[string]string{"target_date": in.TargetDate, "next_review_at": in.NextReviewAt} {
+	for field, value := range map[string]string{
+		"target_date": in.TargetDate, "next_review_at": in.NextReviewAt,
+		"start_date": in.StartDate, "end_date": in.EndDate,
+	} {
 		if value != "" {
 			if err := ValidateDate(field, value); err != nil {
 				return err
 			}
 		}
+	}
+	if in.StartDate != "" && in.EndDate != "" && in.StartDate > in.EndDate {
+		return protocol.BadInput("start_date must not be after end_date")
 	}
 	if in.HardDueAt != "" {
 		if err := ValidateTimestamp("hard_due_at", in.HardDueAt); err != nil {
@@ -194,17 +227,32 @@ func (s *Store) CreateProject(ctx context.Context, wc WriteContext, in CreatePro
 				return nil, err
 			}
 		}
+		if in.ParentProjectID != "" {
+			if err := requireExists(ctx, tx, "projects", in.ParentProjectID, "parent project"); err != nil {
+				return nil, err
+			}
+		}
 		id := system.NewID("proj")
+		if in.Kind == "sprint" {
+			id = system.NewID("sprint")
+		}
 		ts := system.FormatTimestamp(now)
 		_, err := tx.ExecContext(ctx, `
-            INSERT INTO projects (id, initiative_id, name, description, status, stage, importance,
+            INSERT INTO projects (id, initiative_id, parent_project_id, kind, name, description,
+                                  status, stage, importance, start_date, end_date,
                                   target_date, hard_due_at, next_review_at, outcome,
-                                  completion_criteria, legacy_ref, version, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)`,
-			id, nullString(in.InitiativeID), in.Name, nullString(in.Description), in.Status,
-			nullString(in.Stage), in.Importance, nullString(in.TargetDate), nullString(in.HardDueAt),
+                                  completion_criteria, metric_name, metric_unit,
+                                  target_value, current_value, legacy_ref, sort_order,
+                                  version, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)`,
+			id, nullString(in.InitiativeID), nullString(in.ParentProjectID), in.Kind,
+			in.Name, nullString(in.Description), in.Status, nullString(in.Stage), in.Importance,
+			nullString(in.StartDate), nullString(in.EndDate),
+			nullString(in.TargetDate), nullString(in.HardDueAt),
 			nullString(in.NextReviewAt), nullString(in.Outcome), nullString(in.CompletionCriteria),
-			nullString(in.LegacyRef), ts, ts)
+			nullString(in.MetricName), nullString(in.MetricUnit),
+			nullFloat(in.TargetValue), nullFloat(in.CurrentValue),
+			nullString(in.LegacyRef), in.SortOrder, ts, ts)
 		if err != nil {
 			return nil, err
 		}

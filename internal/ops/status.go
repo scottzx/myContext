@@ -13,8 +13,9 @@ import (
 // different reasons ("scheduled" and "hard_due") - that overlap is the point.
 type AgendaEntry struct {
 	Date             string  `json:"date"`
-	Reason           string  `json:"reason"` // scheduled | hard_due | review
-	TaskID           string  `json:"task_id"`
+	Reason           string  `json:"reason"`      // scheduled | hard_due | review | milestone
+	EntityType       string  `json:"entity_type"` // task | milestone
+	EntityID         string  `json:"entity_id"`
 	Title            string  `json:"title"`
 	Status           string  `json:"status"`
 	Importance       string  `json:"importance"`
@@ -41,11 +42,12 @@ type DayLoad struct {
 
 // OverdueEntry is a missed hard deadline.
 type OverdueEntry struct {
-	TaskID      string  `json:"task_id"`
+	EntityType  string  `json:"entity_type"` // task | milestone
+	EntityID    string  `json:"entity_id"`
 	Title       string  `json:"title"`
 	Importance  string  `json:"importance"`
 	ProjectName *string `json:"project_name"`
-	HardDueAt   string  `json:"hard_due_at"`
+	DueAt       string  `json:"due_at"`
 	DaysOverdue int     `json:"days_overdue"`
 }
 
@@ -74,7 +76,12 @@ type Status struct {
 	ReviewDue            []AgendaEntry  `json:"review_due"`
 	UnscheduledImportant []AgendaEntry  `json:"unscheduled_important"`
 	OverloadedDays       []DayLoad      `json:"overloaded_days"`
-	QualityIssues        []QualityIssue `json:"quality_issues"`
+
+	// Milestones are the dated points ahead, with the work aimed at each.
+	// They are not tasks, so they get their own list rather than being mixed
+	// into the agendas.
+	Milestones    []MilestoneProgress `json:"milestones"`
+	QualityIssues []QualityIssue      `json:"quality_issues"`
 
 	// Totals report the full counts even when a list above was capped, so a
 	// truncated view can never understate the real situation.
@@ -96,8 +103,9 @@ type Totals struct {
 // agendaSelect fixes the column order every agenda query must produce, so a
 // later change to a view cannot silently shift the scan.
 const agendaSelect = `
-    SELECT date, reason, task_id, title, status, importance, project_id, project_name,
-           area_name, hard_due_at, next_review_at, effective_minutes, schedule_id, time_slot
+    SELECT date, reason, entity_type, entity_id, title, status, importance,
+           project_id, project_name, area_name, hard_due_at, next_review_at,
+           effective_minutes, schedule_id, time_slot
       FROM `
 
 // ProjectionVersion lets the UI detect a read-model change without tracking
@@ -122,14 +130,25 @@ func (s *Store) Status(ctx context.Context) (*Status, error) {
 		return nil, err
 	}
 	if out.ReviewDue, err = s.agenda(ctx, `
-        SELECT next_review_at AS date, 'review' AS reason, task_id, title, status, importance,
-               project_id, project_name, area_name, NULL, next_review_at, NULL, NULL, NULL
+        SELECT next_review_at AS date, 'review' AS reason, 'task', task_id, title, status,
+               importance, project_id, project_name, area_name, NULL, next_review_at, NULL, NULL, NULL
           FROM v_review_due ORDER BY next_review_at, importance LIMIT ?`, ListCap+1); err != nil {
 		return nil, err
 	}
+	// The horizon is the same week the boards already cover, plus anything
+	// already past: a checkpoint further out is not actionable today.
+	if out.Milestones, err = s.ListMilestones(ctx, MilestoneFilter{
+		OpenOnly: true,
+		Through:  endOfWeek(today),
+		Limit:    ListCap + 1,
+	}); err != nil {
+		return nil, err
+	}
+
 	if out.UnscheduledImportant, err = s.agenda(ctx, `
-        SELECT NULL AS date, 'unscheduled' AS reason, task_id, title, status, importance,
-               project_id, project_name, area_name, NULL, next_review_at, estimate_minutes, NULL, NULL
+        SELECT NULL AS date, 'unscheduled' AS reason, 'task', task_id, title, status,
+               importance, project_id, project_name, area_name, NULL, next_review_at,
+               estimate_minutes, NULL, NULL
           FROM v_unscheduled_important ORDER BY importance, title LIMIT ?`, ListCap+1); err != nil {
 		return nil, err
 	}
@@ -223,7 +242,7 @@ func (s *Store) agenda(ctx context.Context, query string, args ...any) ([]Agenda
 		var e AgendaEntry
 		var date sql.NullString
 		var minutes sql.NullInt64
-		if err := rows.Scan(&date, &e.Reason, &e.TaskID, &e.Title, &e.Status, &e.Importance,
+		if err := rows.Scan(&date, &e.Reason, &e.EntityType, &e.EntityID, &e.Title, &e.Status, &e.Importance,
 			&e.ProjectID, &e.ProjectName, &e.AreaName, &e.HardDueAt, &e.NextReviewAt,
 			&minutes, &e.ScheduleID, &e.TimeSlot); err != nil {
 			return nil, sqlite.Classify(err)
@@ -263,8 +282,8 @@ func (s *Store) dayLoads(ctx context.Context, query string, args ...any) ([]DayL
 
 func (s *Store) overdue(ctx context.Context) ([]OverdueEntry, error) {
 	rows, err := s.db.SQL().QueryContext(ctx, `
-        SELECT task_id, title, importance, project_name, hard_due_at, days_overdue
-          FROM v_overdue ORDER BY hard_due_at`)
+        SELECT entity_type, entity_id, title, importance, project_name, due_at, days_overdue
+          FROM v_overdue ORDER BY due_at, entity_type`)
 	if err != nil {
 		return nil, sqlite.Classify(err)
 	}
@@ -274,13 +293,26 @@ func (s *Store) overdue(ctx context.Context) ([]OverdueEntry, error) {
 	for rows.Next() {
 		var e OverdueEntry
 		var days sql.NullInt64
-		if err := rows.Scan(&e.TaskID, &e.Title, &e.Importance, &e.ProjectName, &e.HardDueAt, &days); err != nil {
+		if err := rows.Scan(&e.EntityType, &e.EntityID, &e.Title, &e.Importance, &e.ProjectName,
+			&e.DueAt, &days); err != nil {
 			return nil, sqlite.Classify(err)
 		}
 		e.DaysOverdue = int(days.Int64)
 		out = append(out, e)
 	}
 	return out, sqlite.Classify(rows.Err())
+}
+
+// QualityIssueCount is the true number of violations. QualityIssues caps its
+// result at ListCap so a dashboard stays readable, which makes its length the
+// wrong thing to report as a total.
+func (s *Store) QualityIssueCount(ctx context.Context) (int, error) {
+	var n int
+	if err := s.db.SQL().QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM v_data_quality_issues`).Scan(&n); err != nil {
+		return 0, sqlite.Classify(err)
+	}
+	return n, nil
 }
 
 // QualityIssues lists every checkable rule violation (§15).

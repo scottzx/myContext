@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -136,6 +137,12 @@ func projectCreateCmd(opts *GlobalOptions) *cobra.Command {
 		Args:        cobra.MaximumNArgs(1),
 	}
 	cmd.Flags().StringVar(&in.InitiativeID, "initiative", "", "initiative id")
+	cmd.Flags().StringVar(&in.ParentProjectID, "parent", "", "parent project id")
+	cmd.Flags().StringVar(&in.Kind, "kind", "", "project|sprint (a sprint needs --parent)")
+	cmd.Flags().StringVar(&in.StartDate, "start", "", "window start, YYYY-MM-DD")
+	cmd.Flags().StringVar(&in.EndDate, "end", "", "window end, YYYY-MM-DD")
+	cmd.Flags().StringVar(&in.MetricName, "metric", "", "what this project measures")
+	cmd.Flags().StringVar(&in.MetricUnit, "unit", "", "unit of the metric")
 	cmd.Flags().StringVar(&in.Description, "description", "", "description")
 	cmd.Flags().StringVar(&in.Status, "status", "", "planned|active|waiting|paused")
 	cmd.Flags().StringVar(&in.Stage, "stage", "", "discover|plan|build|deliver|operate|close")
@@ -293,16 +300,71 @@ func projectTreeCmd(opts *GlobalOptions) *cobra.Command {
 				for _, init := range area.Initiatives {
 					fmt.Fprintf(w, "  └ %s  [%s]  (%s)\n", init.Initiative.Name,
 						init.Initiative.Status, init.Initiative.ID)
-					for _, p := range init.Projects {
-						fmt.Fprintf(w, "      └ %s  [%s %s]  %d open  (%s)\n",
-							p.Name, p.Importance, p.Status, p.OpenTasks, p.ID)
-					}
+					renderProjectBranch(w, init.Projects, rootsOf(init.Projects), "", 3)
 				}
 			}
 			return nil
 		})
 	})
 	return cmd
+}
+
+// renderProjectBranch prints projects with their children nested beneath
+// them, so a sprint reads as living inside its project rather than beside it.
+func renderProjectBranch(w io.Writer, projects []*ops.ProjectSummary,
+	present map[string]bool, parentID string, depth int) {
+
+	indent := strings.Repeat("  ", depth)
+	for _, p := range projects {
+		// A child whose parent sits in another branch would otherwise never be
+		// printed, so treat it as a root here rather than losing it.
+		effective := projectParent(p)
+		if !present[effective] {
+			effective = ""
+		}
+		if effective != parentID {
+			continue
+		}
+		label := ""
+		if p.Kind == "sprint" {
+			label = " ·sprint"
+			if window := projectWindow(p.Project); window != "" {
+				label += " " + window
+			}
+		}
+		fmt.Fprintf(w, "%s└ %s%s  [%s %s]  %d open  (%s)\n",
+			indent, p.Name, label, p.Importance, p.Status, p.OpenTasks, p.ID)
+		renderProjectBranch(w, projects, present, p.ID, depth+1)
+	}
+}
+
+// rootsOf indexes which projects are actually in this branch, so nesting can
+// tell a real parent from one that lives elsewhere.
+func rootsOf(projects []*ops.ProjectSummary) map[string]bool {
+	present := make(map[string]bool, len(projects))
+	for _, p := range projects {
+		present[p.ID] = true
+	}
+	return present
+}
+
+func projectParent(p *ops.ProjectSummary) string {
+	if p.ParentProjectID == nil {
+		return ""
+	}
+	return *p.ParentProjectID
+}
+
+func projectWindow(p *ops.Project) string {
+	switch {
+	case p.StartDate != nil && p.EndDate != nil:
+		return *p.StartDate + "~" + *p.EndDate
+	case p.EndDate != nil:
+		return "→" + *p.EndDate
+	case p.StartDate != nil:
+		return *p.StartDate + "→"
+	}
+	return ""
 }
 
 // ---------------------------------------------------------------------------

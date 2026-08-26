@@ -4,6 +4,7 @@ const REASON_LABEL: Record<string, string> = {
   scheduled: "plan",
   hard_due: "due",
   review: "review",
+  milestone: "checkpoint",
   unscheduled: "—",
 };
 
@@ -27,10 +28,13 @@ export function AgendaTable({ entries, emptyLabel }: { entries: AgendaEntry[]; e
       </thead>
       <tbody>
         {entries.map((e) => (
-          <tr key={`${e.task_id}-${e.reason}`}>
+          <tr key={`${e.entity_id}-${e.reason}`}>
             <td>{REASON_LABEL[e.reason] ?? e.reason}</td>
             <td><span className={`badge ${e.importance}`}>{e.importance}</span></td>
-            <td>{e.title}</td>
+            <td>
+              {e.entity_type === "milestone" && <span className="kind-tag">milestone</span>}
+              {e.title}
+            </td>
             <td>{e.project_name ?? "—"}</td>
             <td>{e.effective_minutes ?? "—"}</td>
           </tr>

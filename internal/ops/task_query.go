@@ -11,9 +11,10 @@ import (
 )
 
 const taskColumns = `
-    t.id, t.project_id, t.parent_task_id, t.title, t.detail, t.completion_criteria,
+    t.id, t.project_id, t.milestone_id, t.parent_task_id, t.title, t.detail, t.completion_criteria,
     t.status, t.importance, t.hard_due_at, t.earliest_start_at, t.next_review_at,
-    t.estimate_minutes, t.waiting_for, t.legacy_ref, t.legacy_due_date,
+    t.estimate_minutes, t.metric_name, t.metric_unit, t.target_value, t.current_value,
+    t.waiting_for, t.legacy_ref, t.legacy_due_date,
     t.version, t.created_at, t.updated_at, t.completed_at,
     s.id, s.planned_date, s.time_slot, s.planned_minutes, s.status, s.created_by, s.note, s.created_at`
 
@@ -28,9 +29,10 @@ func scanTask(row interface{ Scan(...any) error }) (*Task, error) {
 	var plannedMinutes sql.NullInt64
 
 	err := row.Scan(
-		&t.ID, &t.ProjectID, &t.ParentTaskID, &t.Title, &t.Detail, &t.CompletionCriteria,
+		&t.ID, &t.ProjectID, &t.MilestoneID, &t.ParentTaskID, &t.Title, &t.Detail, &t.CompletionCriteria,
 		&t.Status, &t.Importance, &t.HardDueAt, &t.EarliestStartAt, &t.NextReviewAt,
-		&t.EstimateMinutes, &t.WaitingFor, &t.LegacyRef, &t.LegacyDueDate,
+		&t.EstimateMinutes, &t.MetricName, &t.MetricUnit, &t.TargetValue, &t.CurrentValue,
+		&t.WaitingFor, &t.LegacyRef, &t.LegacyDueDate,
 		&t.Version, &t.CreatedAt, &t.UpdatedAt, &t.CompletedAt,
 		&schedID, &plannedDate, &timeSlot, &plannedMinutes, &schedStatus, &createdBy, &note, &schedCreated)
 	if err != nil {

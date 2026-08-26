@@ -1,6 +1,6 @@
 {
   "protocol": "mycontext-cli/v1",
-  "cli_version": "0.1.0-dev",
+  "cli_version": "0.4.0",
   "binary": "mycontext",
   "global_flags": [
     {
@@ -135,6 +135,84 @@
       ]
     },
     {
+      "name": "dep.add",
+      "invoke": "mycontext dep add <from-id> <to-id> [flags]",
+      "summary": "Record that one node blocks, requires, supports or relates to another",
+      "write": true,
+      "arguments": [
+        {
+          "name": "from-id",
+          "required": true
+        },
+        {
+          "name": "to-id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--from-type",
+          "type": "string",
+          "description": "objective|key_result|initiative|project|task",
+          "default": "task"
+        },
+        {
+          "name": "--lag",
+          "type": "int",
+          "description": "days that must pass after the upstream finishes",
+          "default": "0"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "why this edge exists"
+        },
+        {
+          "name": "--to-type",
+          "type": "string",
+          "description": "objective|key_result|initiative|project|task",
+          "default": "task"
+        },
+        {
+          "name": "--type",
+          "type": "string",
+          "description": "blocks|requires|related|supports",
+          "default": "blocks"
+        }
+      ]
+    },
+    {
+      "name": "dep.list",
+      "invoke": "mycontext dep list [id] [flags]",
+      "summary": "List edges touching a node, both directions",
+      "write": false,
+      "arguments": [
+        {
+          "name": "id",
+          "required": false
+        }
+      ],
+      "flags": [
+        {
+          "name": "--direction",
+          "type": "string",
+          "description": "both|outgoing|incoming",
+          "default": "both"
+        },
+        {
+          "name": "--entity-type",
+          "type": "string",
+          "description": "type of the node given",
+          "default": "task"
+        },
+        {
+          "name": "--type",
+          "type": "string",
+          "description": "filter by dependency type"
+        }
+      ]
+    },
+    {
       "name": "event.list",
       "invoke": "mycontext event list [flags]",
       "summary": "List events, newest first",
@@ -165,6 +243,19 @@
           "name": "--since",
           "type": "string",
           "description": "RFC 3339 lower bound"
+        }
+      ]
+    },
+    {
+      "name": "import.okr",
+      "invoke": "mycontext import okr <path/to/tasks.db>",
+      "summary": "Import a legacy OKR tree (preview by default; --confirm writes)",
+      "long": "Reads the source database read-only and reports exactly what it would\nwrite, including every field mapping it had to choose. Nothing is\nwritten until --confirm is given.",
+      "write": true,
+      "arguments": [
+        {
+          "name": "path/to/tasks.db",
+          "required": true
         }
       ]
     },
@@ -209,6 +300,322 @@
       ]
     },
     {
+      "name": "kr.create",
+      "invoke": "mycontext kr create <name> [flags]",
+      "summary": "Create a key result under an objective",
+      "write": true,
+      "arguments": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--current",
+          "type": "float64",
+          "description": "current value",
+          "default": "0"
+        },
+        {
+          "name": "--horizon",
+          "type": "string",
+          "description": "e.g. 2026Q3"
+        },
+        {
+          "name": "--metric",
+          "type": "string",
+          "description": "what is measured (required)"
+        },
+        {
+          "name": "--objective",
+          "type": "string",
+          "description": "objective id (required)"
+        },
+        {
+          "name": "--target",
+          "type": "float64",
+          "description": "target value",
+          "default": "0"
+        },
+        {
+          "name": "--unit",
+          "type": "string",
+          "description": "unit of the metric"
+        },
+        {
+          "name": "--weight",
+          "type": "float64",
+          "description": "share of the objective, 0..1",
+          "default": "0"
+        }
+      ]
+    },
+    {
+      "name": "kr.update",
+      "invoke": "mycontext kr update <id> [flags]",
+      "summary": "Patch a key result, typically to move its current value",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--current",
+          "type": "float64",
+          "description": "current value",
+          "default": "0"
+        },
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--name",
+          "type": "string",
+          "description": "new name"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "active|done|dropped|archived"
+        },
+        {
+          "name": "--target",
+          "type": "float64",
+          "description": "target value",
+          "default": "0"
+        },
+        {
+          "name": "--weight",
+          "type": "float64",
+          "description": "share of the objective, 0..1",
+          "default": "0"
+        }
+      ]
+    },
+    {
+      "name": "milestone.create",
+      "invoke": "mycontext milestone create <name> [flags]",
+      "summary": "Record a dated checkpoint",
+      "write": true,
+      "arguments": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--current",
+          "type": "float64",
+          "description": "current value",
+          "default": "0"
+        },
+        {
+          "name": "--date",
+          "type": "string",
+          "description": "target date, YYYY-MM-DD (required)"
+        },
+        {
+          "name": "--importance",
+          "type": "string",
+          "description": "P0|P1|P2|P3"
+        },
+        {
+          "name": "--kr",
+          "type": "string",
+          "description": "key result it contributes to"
+        },
+        {
+          "name": "--metric",
+          "type": "string",
+          "description": "what reaching it measures"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--project",
+          "type": "string",
+          "description": "project this checkpoint belongs to"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "pending|at_risk|hit|missed|cancelled"
+        },
+        {
+          "name": "--target",
+          "type": "float64",
+          "description": "target value",
+          "default": "0"
+        },
+        {
+          "name": "--unit",
+          "type": "string",
+          "description": "unit of the metric"
+        }
+      ]
+    },
+    {
+      "name": "milestone.list",
+      "invoke": "mycontext milestone list [flags]",
+      "summary": "List milestones with the work aimed at them",
+      "write": false,
+      "flags": [
+        {
+          "name": "--kr",
+          "type": "string",
+          "description": "filter by key result"
+        },
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum rows",
+          "default": "0"
+        },
+        {
+          "name": "--open",
+          "type": "bool",
+          "description": "exclude hit and cancelled",
+          "default": "false"
+        },
+        {
+          "name": "--project",
+          "type": "string",
+          "description": "filter by project"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "filter by status"
+        },
+        {
+          "name": "--through",
+          "type": "string",
+          "description": "only those due on or before YYYY-MM-DD"
+        }
+      ]
+    },
+    {
+      "name": "milestone.update",
+      "invoke": "mycontext milestone update <id> [flags]",
+      "summary": "Patch a milestone (moving its date requires --reason)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--current",
+          "type": "float64",
+          "description": "current value",
+          "default": "0"
+        },
+        {
+          "name": "--date",
+          "type": "string",
+          "description": "move the target date (requires --reason)"
+        },
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before editing",
+          "default": "0"
+        },
+        {
+          "name": "--importance",
+          "type": "string",
+          "description": "P0|P1|P2|P3"
+        },
+        {
+          "name": "--kr",
+          "type": "string",
+          "description": "key result it contributes to"
+        },
+        {
+          "name": "--name",
+          "type": "string",
+          "description": "new name"
+        },
+        {
+          "name": "--note",
+          "type": "string",
+          "description": "note"
+        },
+        {
+          "name": "--project",
+          "type": "string",
+          "description": "move to project id"
+        },
+        {
+          "name": "--status",
+          "type": "string",
+          "description": "pending|at_risk|hit|missed|cancelled"
+        },
+        {
+          "name": "--target",
+          "type": "float64",
+          "description": "target value",
+          "default": "0"
+        }
+      ]
+    },
+    {
+      "name": "objective.create",
+      "invoke": "mycontext objective create <name> [flags]",
+      "summary": "Create an objective",
+      "write": true,
+      "arguments": [
+        {
+          "name": "name",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--area",
+          "type": "string",
+          "description": "area id"
+        },
+        {
+          "name": "--horizon",
+          "type": "string",
+          "description": "e.g. 2026Q3"
+        },
+        {
+          "name": "--vision",
+          "type": "string",
+          "description": "long-form description of the objective"
+        }
+      ]
+    },
+    {
+      "name": "objective.list",
+      "invoke": "mycontext objective list [flags]",
+      "summary": "List objectives with their key results",
+      "write": false,
+      "flags": [
+        {
+          "name": "--all",
+          "type": "bool",
+          "description": "include dropped and archived",
+          "default": "false"
+        }
+      ]
+    },
+    {
       "name": "ops.status",
       "invoke": "mycontext ops status",
       "summary": "Today, tomorrow, the week, overdue, reviews and overload",
@@ -238,6 +645,11 @@
           "description": "completion criteria"
         },
         {
+          "name": "--end",
+          "type": "string",
+          "description": "window end, YYYY-MM-DD"
+        },
+        {
           "name": "--hard-due",
           "type": "string",
           "description": "external deadline, RFC 3339"
@@ -253,9 +665,24 @@
           "description": "initiative id"
         },
         {
+          "name": "--kind",
+          "type": "string",
+          "description": "project|sprint (a sprint needs --parent)"
+        },
+        {
+          "name": "--metric",
+          "type": "string",
+          "description": "what this project measures"
+        },
+        {
           "name": "--outcome",
           "type": "string",
           "description": "what this produces"
+        },
+        {
+          "name": "--parent",
+          "type": "string",
+          "description": "parent project id"
         },
         {
           "name": "--review",
@@ -268,6 +695,11 @@
           "description": "discover|plan|build|deliver|operate|close"
         },
         {
+          "name": "--start",
+          "type": "string",
+          "description": "window start, YYYY-MM-DD"
+        },
+        {
           "name": "--status",
           "type": "string",
           "description": "planned|active|waiting|paused"
@@ -276,6 +708,11 @@
           "name": "--target-date",
           "type": "string",
           "description": "intended completion, YYYY-MM-DD"
+        },
+        {
+          "name": "--unit",
+          "type": "string",
+          "description": "unit of the metric"
         }
       ]
     },
@@ -590,6 +1027,55 @@
       "write": false
     },
     {
+      "name": "tag.list",
+      "invoke": "mycontext tag list [id] [flags]",
+      "summary": "List the tag vocabulary with usage counts",
+      "write": false,
+      "arguments": [
+        {
+          "name": "id",
+          "required": false
+        }
+      ],
+      "flags": [
+        {
+          "name": "--entity-type",
+          "type": "string",
+          "description": "restrict to one entity type"
+        }
+      ]
+    },
+    {
+      "name": "tag.set",
+      "invoke": "mycontext tag set <id> <tags> [flags]",
+      "summary": "Attach tags to a node (comma or pipe separated)",
+      "write": true,
+      "arguments": [
+        {
+          "name": "id",
+          "required": true
+        },
+        {
+          "name": "tags",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--entity-type",
+          "type": "string",
+          "description": "objective|key_result|initiative|project|task",
+          "default": "task"
+        },
+        {
+          "name": "--replace",
+          "type": "bool",
+          "description": "make the given set authoritative",
+          "default": "false"
+        }
+      ]
+    },
+    {
       "name": "task.complete",
       "invoke": "mycontext task complete <id> [flags]",
       "summary": "Mark a task done",
@@ -637,6 +1123,11 @@
           "description": "completion criteria"
         },
         {
+          "name": "--earliest-start",
+          "type": "string",
+          "description": "not before this instant, RFC 3339"
+        },
+        {
           "name": "--estimate",
           "type": "int",
           "description": "estimated minutes",
@@ -653,6 +1144,21 @@
           "description": "P0|P1|P2|P3"
         },
         {
+          "name": "--metric",
+          "type": "string",
+          "description": "what this task contributes to"
+        },
+        {
+          "name": "--milestone",
+          "type": "string",
+          "description": "milestone this task works towards"
+        },
+        {
+          "name": "--parent",
+          "type": "string",
+          "description": "parent task id"
+        },
+        {
           "name": "--plan",
           "type": "string",
           "description": "planned date, YYYY-MM-DD"
@@ -666,7 +1172,7 @@
         {
           "name": "--project",
           "type": "string",
-          "description": "project id"
+          "description": "project id (a sprint is a project)"
         },
         {
           "name": "--review",
@@ -682,6 +1188,11 @@
           "name": "--status",
           "type": "string",
           "description": "inbox|todo|doing|waiting"
+        },
+        {
+          "name": "--unit",
+          "type": "string",
+          "description": "unit of the metric"
         },
         {
           "name": "--waiting-for",
@@ -878,6 +1389,11 @@
           "description": "P0|P1|P2|P3"
         },
         {
+          "name": "--milestone",
+          "type": "string",
+          "description": "milestone this task works towards (empty to detach)"
+        },
+        {
           "name": "--project",
           "type": "string",
           "description": "move to project id"
@@ -901,6 +1417,27 @@
           "name": "--waiting-for",
           "type": "string",
           "description": "person or condition"
+        }
+      ]
+    },
+    {
+      "name": "ui.serve",
+      "invoke": "mycontext ui serve [flags]",
+      "summary": "Serve the read-only dashboard on 127.0.0.1 until Ctrl-C",
+      "long": "Binds a random port on 127.0.0.1 only (never the network) and serves\nthe embedded static frontend plus a single read-only invoke endpoint.\nThis is not a daemon: it runs only while this command runs, and stops\non Ctrl-C or after --idle-timeout with no requests.",
+      "write": false,
+      "flags": [
+        {
+          "name": "--idle-timeout",
+          "type": "duration",
+          "description": "stop after this long with no requests",
+          "default": "30m0s"
+        },
+        {
+          "name": "--port",
+          "type": "int",
+          "description": "fixed port (default: random)",
+          "default": "0"
         }
       ]
     }

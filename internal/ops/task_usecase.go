@@ -11,22 +11,27 @@ import (
 
 // CreateTaskInput is the payload of `task.create`.
 type CreateTaskInput struct {
-	ProjectID          string `json:"project_id,omitempty"`
-	ParentTaskID       string `json:"parent_task_id,omitempty"`
-	Title              string `json:"title"`
-	Detail             string `json:"detail,omitempty"`
-	CompletionCriteria string `json:"completion_criteria,omitempty"`
-	Status             string `json:"status,omitempty"`
-	Importance         string `json:"importance,omitempty"`
-	HardDueAt          string `json:"hard_due_at,omitempty"`
-	EarliestStartAt    string `json:"earliest_start_at,omitempty"`
-	NextReviewAt       string `json:"next_review_at,omitempty"`
-	EstimateMinutes    int    `json:"estimate_minutes,omitempty"`
-	WaitingFor         string `json:"waiting_for,omitempty"`
-	PlannedDate        string `json:"planned_date,omitempty"`
-	TimeSlot           string `json:"time_slot,omitempty"`
-	PlannedMinutes     int    `json:"planned_minutes,omitempty"`
-	LegacyRef          string `json:"legacy_ref,omitempty"`
+	ProjectID          string   `json:"project_id,omitempty"`
+	ParentTaskID       string   `json:"parent_task_id,omitempty"`
+	MilestoneID        string   `json:"milestone_id,omitempty"`
+	Title              string   `json:"title"`
+	Detail             string   `json:"detail,omitempty"`
+	CompletionCriteria string   `json:"completion_criteria,omitempty"`
+	Status             string   `json:"status,omitempty"`
+	Importance         string   `json:"importance,omitempty"`
+	HardDueAt          string   `json:"hard_due_at,omitempty"`
+	EarliestStartAt    string   `json:"earliest_start_at,omitempty"`
+	NextReviewAt       string   `json:"next_review_at,omitempty"`
+	EstimateMinutes    int      `json:"estimate_minutes,omitempty"`
+	MetricName         string   `json:"metric_name,omitempty"`
+	MetricUnit         string   `json:"metric_unit,omitempty"`
+	TargetValue        *float64 `json:"target_value,omitempty"`
+	CurrentValue       *float64 `json:"current_value,omitempty"`
+	WaitingFor         string   `json:"waiting_for,omitempty"`
+	PlannedDate        string   `json:"planned_date,omitempty"`
+	TimeSlot           string   `json:"time_slot,omitempty"`
+	PlannedMinutes     int      `json:"planned_minutes,omitempty"`
+	LegacyRef          string   `json:"legacy_ref,omitempty"`
 }
 
 func (in *CreateTaskInput) normalize() error {
@@ -94,18 +99,28 @@ func (s *Store) CreateTask(ctx context.Context, wc WriteContext, in CreateTaskIn
 				return nil, err
 			}
 		}
+		if in.MilestoneID != "" {
+			if err := requireExists(ctx, tx, "milestones", in.MilestoneID, "milestone"); err != nil {
+				return nil, err
+			}
+		}
 
 		id := system.NewID("task")
 		ts := system.FormatTimestamp(now)
 		_, err := tx.ExecContext(ctx, `
-            INSERT INTO tasks (id, project_id, parent_task_id, title, detail, completion_criteria,
-                               status, importance, hard_due_at, earliest_start_at, next_review_at,
-                               estimate_minutes, waiting_for, legacy_ref, version, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)`,
-			id, nullString(in.ProjectID), nullString(in.ParentTaskID), in.Title,
+            INSERT INTO tasks (id, project_id, parent_task_id, milestone_id, title, detail,
+                               completion_criteria, status, importance, hard_due_at,
+                               earliest_start_at, next_review_at, estimate_minutes,
+                               metric_name, metric_unit, target_value, current_value,
+                               waiting_for, legacy_ref, version, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)`,
+			id, nullString(in.ProjectID), nullString(in.ParentTaskID),
+			nullString(in.MilestoneID), in.Title,
 			nullString(in.Detail), nullString(in.CompletionCriteria), in.Status, in.Importance,
 			nullString(in.HardDueAt), nullString(in.EarliestStartAt), nullString(in.NextReviewAt),
-			nullInt(in.EstimateMinutes), nullString(in.WaitingFor), nullString(in.LegacyRef), ts, ts)
+			nullInt(in.EstimateMinutes), nullString(in.MetricName), nullString(in.MetricUnit),
+			nullFloat(in.TargetValue), nullFloat(in.CurrentValue),
+			nullString(in.WaitingFor), nullString(in.LegacyRef), ts, ts)
 		if err != nil {
 			return nil, err
 		}
@@ -146,6 +161,7 @@ type UpdateTaskInput struct {
 	EstimateMinutes *int    `json:"estimate_minutes,omitempty"`
 	WaitingFor      *string `json:"waiting_for,omitempty"`
 	ProjectID       *string `json:"project_id,omitempty"`
+	MilestoneID     *string `json:"milestone_id,omitempty"`
 	CompletionCrit  *string `json:"completion_criteria,omitempty"`
 
 	// HardDueAt is deliberately separate from planning: changing a real
@@ -205,6 +221,7 @@ func (s *Store) UpdateTask(ctx context.Context, wc WriteContext, in UpdateTaskIn
 		set.str("importance", in.Importance)
 		set.str("waiting_for", in.WaitingFor)
 		set.str("project_id", in.ProjectID)
+		set.str("milestone_id", in.MilestoneID)
 		set.str("completion_criteria", in.CompletionCrit)
 		set.str("hard_due_at", in.HardDueAt)
 		set.str("next_review_at", in.NextReviewAt)
@@ -218,6 +235,11 @@ func (s *Store) UpdateTask(ctx context.Context, wc WriteContext, in UpdateTaskIn
 		}
 		if in.ProjectID != nil && *in.ProjectID != "" {
 			if err := requireExists(ctx, tx, "projects", *in.ProjectID, "project"); err != nil {
+				return nil, err
+			}
+		}
+		if in.MilestoneID != nil && *in.MilestoneID != "" {
+			if err := requireExists(ctx, tx, "milestones", *in.MilestoneID, "milestone"); err != nil {
 				return nil, err
 			}
 		}
@@ -558,6 +580,13 @@ func bumpTaskVersion(ctx context.Context, tx *sql.Tx, id string, expected int64,
 
 func requireExists(ctx context.Context, tx *sql.Tx, table, id, label string) error {
 	var found int
+	if table == "" {
+		// An entity type that passed validation but has no table would other-
+		// wise splice an empty name into the statement and surface as a SQL
+		// syntax error. entityTables is the single source of both, so this is
+		// unreachable; it fails loudly rather than malformed if that changes.
+		return protocol.Internal("no table is registered for %s", label)
+	}
 	// The table name is a compile-time constant from the caller, never input.
 	err := tx.QueryRowContext(ctx, `SELECT 1 FROM `+table+` WHERE id = ?`, id).Scan(&found)
 	if err == sql.ErrNoRows {

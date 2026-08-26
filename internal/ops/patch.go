@@ -39,6 +39,16 @@ func (p *patch) num(column string, value *int) {
 	p.args = append(p.args, nullInt(*value))
 }
 
+// flt stages a nullable real column. Unlike num, 0 is a legitimate value -
+// a metric that currently reads zero is not the same as no metric.
+func (p *patch) flt(column string, value *float64) {
+	if value == nil {
+		return
+	}
+	p.columns = append(p.columns, column+" = ?")
+	p.args = append(p.args, *value)
+}
+
 // raw stages a literal value the caller has already validated.
 func (p *patch) raw(column string, value any) {
 	p.columns = append(p.columns, column+" = ?")
@@ -53,6 +63,18 @@ func (p *patch) applyToTask(ctx context.Context, tx *sql.Tx, id string, expected
 
 func (p *patch) applyToProject(ctx context.Context, tx *sql.Tx, id string, expected int64, now time.Time) error {
 	return p.apply(ctx, tx, "projects", "project", id, expected, now)
+}
+
+func (p *patch) applyToCycle(ctx context.Context, tx *sql.Tx, id string, expected int64, now time.Time) error {
+	return p.apply(ctx, tx, "cycles", "cycle", id, expected, now)
+}
+
+func (p *patch) applyToMilestone(ctx context.Context, tx *sql.Tx, id string, expected int64, now time.Time) error {
+	return p.apply(ctx, tx, "milestones", "milestone", id, expected, now)
+}
+
+func (p *patch) applyToKeyResult(ctx context.Context, tx *sql.Tx, id string, expected int64, now time.Time) error {
+	return p.apply(ctx, tx, "key_results", "key result", id, expected, now)
 }
 
 func (p *patch) apply(ctx context.Context, tx *sql.Tx, table, label, id string, expected int64, now time.Time) error {

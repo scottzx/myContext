@@ -91,13 +91,28 @@ func renderStatus(w io.Writer, data any) error {
 	}
 
 	if len(s.Overdue) > 0 {
-		fmt.Fprintf(w, "\n-- overdue hard deadlines (%d) --\n", s.Totals.Overdue)
+		fmt.Fprintf(w, "\n-- overdue (%d) --\n", s.Totals.Overdue)
 		rows := make([][]string, 0, len(s.Overdue))
 		for _, o := range s.Overdue {
-			rows = append(rows, []string{o.TaskID, o.Importance, o.Title,
-				o.HardDueAt, fmt.Sprintf("%dd", o.DaysOverdue)})
+			rows = append(rows, []string{o.EntityType, o.EntityID, o.Importance, o.Title,
+				o.DueAt, fmt.Sprintf("%dd", o.DaysOverdue)})
 		}
-		if err := Table(w, []string{"ID", "IMP", "TITLE", "DUE", "LATE"}, rows); err != nil {
+		if err := Table(w, []string{"WHAT", "ID", "IMP", "TITLE", "DUE", "LATE"}, rows); err != nil {
+			return err
+		}
+	}
+	if len(s.Milestones) > 0 {
+		fmt.Fprintf(w, "\n-- milestones through this week (%d) --\n", len(s.Milestones))
+		rows := make([][]string, 0, len(s.Milestones))
+		for _, m := range s.Milestones {
+			left := "—"
+			if m.DaysLeft != nil {
+				left = fmt.Sprintf("%dd", *m.DaysLeft)
+			}
+			rows = append(rows, []string{m.MilestoneID, m.Importance, m.TargetDate, left,
+				m.Name, fmt.Sprintf("%d/%d", m.DoneCount, m.TaskCount), Deref(m.ProjectName)})
+		}
+		if err := Table(w, []string{"ID", "IMP", "DATE", "LEFT", "NAME", "DONE", "PROJECT"}, rows); err != nil {
 			return err
 		}
 	}
@@ -134,7 +149,7 @@ func renderAgenda(w io.Writer, entries []ops.AgendaEntry) error {
 	rows := make([][]string, 0, len(entries))
 	for _, e := range entries {
 		rows = append(rows, []string{
-			e.Reason, e.TaskID, e.Importance, e.Title,
+			e.Reason, e.EntityID, e.Importance, e.Title,
 			Deref(e.ProjectName), DerefInt(e.EffectiveMinutes),
 		})
 	}
@@ -270,7 +285,12 @@ func taskCreateCmd(opts *GlobalOptions) *cobra.Command {
 		Annotations: map[string]string{"write": "true"},
 		Args:        cobra.MaximumNArgs(1),
 	}
-	cmd.Flags().StringVar(&in.ProjectID, "project", "", "project id")
+	cmd.Flags().StringVar(&in.ProjectID, "project", "", "project id (a sprint is a project)")
+	cmd.Flags().StringVar(&in.ParentTaskID, "parent", "", "parent task id")
+	cmd.Flags().StringVar(&in.MilestoneID, "milestone", "", "milestone this task works towards")
+	cmd.Flags().StringVar(&in.MetricName, "metric", "", "what this task contributes to")
+	cmd.Flags().StringVar(&in.MetricUnit, "unit", "", "unit of the metric")
+	cmd.Flags().StringVar(&in.EarliestStartAt, "earliest-start", "", "not before this instant, RFC 3339")
 	cmd.Flags().StringVar(&in.Detail, "detail", "", "longer description")
 	cmd.Flags().StringVar(&in.CompletionCriteria, "done-when", "", "completion criteria")
 	cmd.Flags().StringVar(&in.Status, "status", "", "inbox|todo|doing|waiting")
@@ -317,7 +337,7 @@ func taskCreateCmd(opts *GlobalOptions) *cobra.Command {
 
 func taskUpdateCmd(opts *GlobalOptions) *cobra.Command {
 	var in ops.UpdateTaskInput
-	var title, detail, status, importance, waitingFor, project, hardDue, review, doneWhen string
+	var title, detail, status, importance, waitingFor, project, milestone, hardDue, review, doneWhen string
 	var estimate int
 
 	cmd := &cobra.Command{
@@ -333,6 +353,7 @@ func taskUpdateCmd(opts *GlobalOptions) *cobra.Command {
 	cmd.Flags().StringVar(&importance, "importance", "", "P0|P1|P2|P3")
 	cmd.Flags().StringVar(&waitingFor, "waiting-for", "", "person or condition")
 	cmd.Flags().StringVar(&project, "project", "", "move to project id")
+	cmd.Flags().StringVar(&milestone, "milestone", "", "milestone this task works towards (empty to detach)")
 	cmd.Flags().StringVar(&hardDue, "hard-due", "", "change the real deadline (requires --reason)")
 	cmd.Flags().StringVar(&review, "review", "", "review date, YYYY-MM-DD")
 	cmd.Flags().StringVar(&doneWhen, "done-when", "", "completion criteria")
@@ -349,6 +370,7 @@ func taskUpdateCmd(opts *GlobalOptions) *cobra.Command {
 		setIfChanged(cmd, "importance", importance, &in.Importance)
 		setIfChanged(cmd, "waiting-for", waitingFor, &in.WaitingFor)
 		setIfChanged(cmd, "project", project, &in.ProjectID)
+		setIfChanged(cmd, "milestone", milestone, &in.MilestoneID)
 		setIfChanged(cmd, "hard-due", hardDue, &in.HardDueAt)
 		setIfChanged(cmd, "review", review, &in.NextReviewAt)
 		setIfChanged(cmd, "done-when", doneWhen, &in.CompletionCrit)

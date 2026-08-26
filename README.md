@@ -11,9 +11,36 @@ Go 实现的本地 CLI，对应两份设计文档：
 ## 当前实现范围
 
 已完成技术分册的 **Phase 1（只读 CLI 骨架）**、**Phase 2（`ops.db v2` 与写入协议）**、
-**Phase 5（npm 分发）**，以及 agent 接入层；**Phase 4 静态前端仅完成 localhost adapter**
-（只读，`mycontext ui serve`）。Snapshot / Minis Bridge 两种 adapter、Library capture、
-`context.db` 尚未开始，见文末。
+**Phase 5（npm 分发）**、**Phase 6 迁移的 `ops.db v3` 与旧 OKR 树导入**，以及 agent 接入层；
+**Phase 4 静态前端仅完成 localhost adapter**（只读，`mycontext ui serve`）。
+Snapshot / Minis Bridge 两种 adapter、Library capture、`context.db` 尚未开始，见文末。
+
+## 要素与关系
+
+`ops.db v3` 只承认三种要素：**project 承载工作、task 是可执行动作、milestone 是工作
+瞄准的那个日期**。其余项目管理概念都由扩展字段和关系边表达，不新开实体——所以既有的
+列表、过滤和命令不改一行就同时认识它们：
+
+| 概念 | 落点 |
+|---|---|
+| 父子项目 | `projects.parent_project_id` |
+| 冲刺 | `projects.kind = 'sprint'` + `start_date` / `end_date`（必须有父项目） |
+| 父子任务 | `tasks.parent_task_id` |
+| 里程碑 | `milestones` 表，`target_date` 非空 |
+| 里程碑下的工作 | `tasks.milestone_id` —— 里程碑拥有瞄准它的任务 |
+| 关联 / 依赖 | `dependencies`——关系是边不是要素，两端各自声明类型，可跨层级 |
+| 量化 | `metric_name` / `metric_unit` / `target_value` / `current_value` 在 KR、项目、里程碑、任务各有一份 |
+| 标签 | `tags(entity_type, entity_id, tag)` |
+
+**里程碑为什么不是 task**：它不可执行、不占容量、没有工时——把它塞进任务列表会让
+"今天要做什么"和"这个日期要到了"混成一件事。它有自己的状态机
+（`pending / at_risk / hit / missed / cancelled`），`v_milestones` 直接回答
+"这个日期会不会兑现"：底下挂了几个任务、完成几个、还剩多少分钟的活。挂零个任务的
+里程碑会进数据质量清单——**没有工作支撑的日期不会自己到来**。改里程碑日期和改任务
+硬截止一样，必须给 `--reason`。
+
+量化是三层汇总：`v_metric_rollup` 同时给出**本层声明值**和**同名 metric 的子项累加值**，
+两者不一致时只陈述事实，不覆盖用户填的数——和超载的处理方式一致。
 
 ## 快速开始
 
@@ -37,6 +64,11 @@ make build
 | `task list\|get\|create\|update\|reschedule\|complete\|set-review` | 任务与计划 |
 | `project list\|get\|create\|update\|link-kr\|tree` | 项目与 Area→Initiative→Project 导航 |
 | `area create` / `initiative create` | 层级维护 |
+| `objective create\|list` / `kr create\|update` | 目标与量化（KR 携带唯一度量定义） |
+| `milestone create\|list\|update` | 日期检查点与瞄准它的任务 |
+| `dep add\|list` | 任意两个节点之间的依赖边 |
+| `tag set\|list` | 任意节点上的标签 |
+| `import okr` | 导入旧 OKR 树（默认预演，`--confirm` 才写） |
 | `schedule day\|week` | 日 / 周看板 |
 | `capacity set` | 声明某天可用分钟 |
 | `event list` | 审计轨迹 |
@@ -176,6 +208,27 @@ DataSource 契约（`web/src/datasource.ts`）是这一层唯一的耦合面：�
 `query(operation, input)`，不知道数据经由 localhost 还是（以后的）Snapshot/Bridge
 传输。换 adapter 只需新写一个实现同一接口的文件。
 
+## 导入旧 OKR 树
+
+```bash
+mycontext import okr /path/to/tasks.db
+```
+
+只读打开源库，报告它**将要**写什么，包括每一处不得不做的字段映射；不加 `--confirm`
+不写任何东西。整棵树在**一个进程、一个事务**里迁入——125 个节点不能是 125 次进程，
+在 iSH 上这是能用和不能用的区别。
+
+映射里两处是刻意的：
+
+- **优先级两套词表不静默合并**。旧库 `critical/high/med/low` 与 `P0..P3` 混用，
+  映射关系写在报告里，必须 `--confirm` 才生效（`internal/ops/model.go` 的设计注记）。
+- **任务的 `due_date` 落到 `legacy_due_date`，不猜它是什么**。旧库的一个日期可能是
+  硬截止、目标日或计划日；系统不替你分类，而是把它们全部列进
+  `v_data_quality_issues` 的 `legacy_due_date_unclassified` 等你处理。
+- **task → milestone 的关联是推导出来的，会逐条列给你看**。旧库没有这一列，唯一
+  诚实的信号是"同项目 + 同日期"。预演时把每一对配对完整打印出来，`--confirm` 才写；
+  一个任务同时命中多个里程碑就留空不猜。
+
 ## 构建
 
 ```bash
@@ -193,7 +246,8 @@ CGo-free，任意宿主可交叉编译全部首批平台；`linux/386`（iSH）�
 - **`context.db`** — sources、inbox_items、entities、facts、evidence、domain_links
 - **Phase 4 静态前端** — Snapshot / Minis Bridge 两种 adapter（localhost 已完成，见上）；
   写入未开放（B+ 设计：先只读，再单任务改期，最后批量/agent 写入）
-- **Phase 6 迁移** — 旧 `tasks.db/nodes` 到 `ops.db v2` 的映射与逐条对账
+- **Phase 6 迁移的余下部分** — `import okr` 已可整树迁入（见下），但导入后的
+  `legacy_due_date` 需要逐条分类为硬截止 / 目标日 / 计划日，尚无批量分类命令
 - `mycontext ui export`、`mycontext verify`
 - `ui serve` 页面还没有在真实浏览器里做过可视化验证（本机 Chrome 扩展未连接，
   只验证到 API/HTML/TS 编译层面）

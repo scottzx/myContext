@@ -5,8 +5,9 @@
 
 export interface AgendaEntry {
   date: string;
-  reason: "scheduled" | "hard_due" | "review" | "unscheduled";
-  task_id: string;
+  reason: "scheduled" | "hard_due" | "review" | "unscheduled" | "milestone";
+  entity_type: "task" | "milestone";
+  entity_id: string;
   title: string;
   status: string;
   importance: "P0" | "P1" | "P2" | "P3";
@@ -31,12 +32,36 @@ export interface DayLoad {
 }
 
 export interface OverdueEntry {
-  task_id: string;
+  entity_type: "task" | "milestone";
+  entity_id: string;
   title: string;
   importance: string;
   project_name: string | null;
-  hard_due_at: string;
+  due_at: string;
   days_overdue: number;
+}
+
+export interface MilestoneProgress {
+  milestone_id: string;
+  name: string;
+  status: string;
+  importance: string;
+  target_date: string;
+  reached_at: string | null;
+  metric_name: string | null;
+  metric_unit: string | null;
+  target_value: number | null;
+  current_value: number | null;
+  project_id: string | null;
+  project_name: string | null;
+  area_name: string | null;
+  key_result_id: string | null;
+  key_result_name: string | null;
+  days_left: number | null;
+  task_count: number;
+  done_count: number;
+  open_tasks: number;
+  open_minutes: number;
 }
 
 export interface QualityIssue {
@@ -65,6 +90,7 @@ export interface Status {
   tomorrow_agenda: AgendaEntry[];
   week: DayLoad[];
   overdue: OverdueEntry[];
+  milestones: MilestoneProgress[];
   review_due: AgendaEntry[];
   unscheduled_important: AgendaEntry[];
   overloaded_days: DayLoad[];
@@ -91,9 +117,13 @@ export interface Initiative {
 export interface ProjectSummary {
   id: string;
   name: string;
+  kind: "project" | "sprint";
+  parent_project_id: string | null;
   status: string;
   importance: "P0" | "P1" | "P2" | "P3";
   stage: string | null;
+  start_date: string | null;
+  end_date: string | null;
   next_review_at: string | null;
   target_date: string | null;
   initiative_name: string | null;

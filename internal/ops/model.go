@@ -3,6 +3,8 @@
 package ops
 
 import (
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/scottzx/mycontext/internal/protocol"
@@ -29,6 +31,7 @@ const (
 	TaskTodo      TaskStatus = "todo"
 	TaskDoing     TaskStatus = "doing"
 	TaskWaiting   TaskStatus = "waiting"
+	TaskPaused    TaskStatus = "paused"
 	TaskDone      TaskStatus = "done"
 	TaskCancelled TaskStatus = "cancelled"
 	TaskArchived  TaskStatus = "archived"
@@ -47,14 +50,53 @@ const (
 )
 
 var (
-	validImportance    = set("P0", "P1", "P2", "P3")
-	validTaskStatus    = set("inbox", "todo", "doing", "waiting", "done", "cancelled", "archived")
-	validProjectStatus = set("planned", "active", "waiting", "paused", "done", "cancelled", "archived")
-	validStage         = set("discover", "plan", "build", "deliver", "operate", "close")
-	validTimeSlot      = set("morning", "afternoon", "evening")
-	validActorType     = set("user", "agent", "ui", "migration", "system")
-	validEntryPoint    = set("cli", "bridge", "http", "import")
+	validImportance      = set("P0", "P1", "P2", "P3")
+	validTaskStatus      = set("inbox", "todo", "doing", "waiting", "paused", "done", "cancelled", "archived")
+	validProjectStatus   = set("planned", "active", "waiting", "paused", "done", "cancelled", "archived")
+	validStage           = set("discover", "plan", "build", "iterate", "deliver", "operate", "close")
+	validOutcomeStatus   = set("active", "done", "dropped", "archived")
+	validDependency      = set("blocks", "requires", "related", "supports")
+	validProjectKind     = set("project", "sprint")
+	validMilestoneStatus = set("pending", "at_risk", "hit", "missed", "cancelled")
+	validTimeSlot        = set("morning", "afternoon", "evening")
+	validActorType       = set("user", "agent", "ui", "migration", "system")
+	validEntryPoint      = set("cli", "bridge", "http", "import")
 )
+
+// entityTables maps an entity type to the table that owns it, so an edge or a
+// tag can be checked against a real row before it is written. It is the single
+// source of truth for the entity vocabulary: validEntityType is derived from
+// its keys, so a type can never be accepted by validation without a table to
+// look it up in. Adding a row here is the only step needed to admit a new type.
+var entityTables = map[string]string{
+	"objective":  "objectives",
+	"key_result": "key_results",
+	"initiative": "initiatives",
+	"project":    "projects",
+	"milestone":  "milestones",
+	"task":       "tasks",
+}
+
+var validEntityType = keySet(entityTables)
+
+// EntityTypeList renders the vocabulary for error messages and flag help, so
+// those cannot drift from what is actually accepted either.
+func EntityTypeList() string {
+	keys := make([]string, 0, len(entityTables))
+	for k := range entityTables {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return strings.Join(keys, "|")
+}
+
+func keySet(m map[string]string) map[string]bool {
+	out := make(map[string]bool, len(m))
+	for k := range m {
+		out[k] = true
+	}
+	return out
+}
 
 func set(values ...string) map[string]bool {
 	m := make(map[string]bool, len(values))
@@ -86,6 +128,7 @@ func (a Actor) validate() error {
 type Task struct {
 	ID                 string     `json:"id"`
 	ProjectID          *string    `json:"project_id"`
+	MilestoneID        *string    `json:"milestone_id"`
 	ParentTaskID       *string    `json:"parent_task_id"`
 	Title              string     `json:"title"`
 	Detail             *string    `json:"detail"`
@@ -96,6 +139,10 @@ type Task struct {
 	EarliestStartAt    *string    `json:"earliest_start_at"`
 	NextReviewAt       *string    `json:"next_review_at"`
 	EstimateMinutes    *int       `json:"estimate_minutes"`
+	MetricName         *string    `json:"metric_name"`
+	MetricUnit         *string    `json:"metric_unit"`
+	TargetValue        *float64   `json:"target_value"`
+	CurrentValue       *float64   `json:"current_value"`
 	WaitingFor         *string    `json:"waiting_for"`
 	LegacyRef          *string    `json:"legacy_ref"`
 	LegacyDueDate      *string    `json:"legacy_due_date"`
@@ -128,13 +175,21 @@ type Project struct {
 	Name               string        `json:"name"`
 	Description        *string       `json:"description"`
 	Status             ProjectStatus `json:"status"`
+	ParentProjectID    *string       `json:"parent_project_id"`
+	Kind               string        `json:"kind"`
 	Stage              *string       `json:"stage"`
 	Importance         Importance    `json:"importance"`
 	TargetDate         *string       `json:"target_date"`
+	StartDate          *string       `json:"start_date"`
+	EndDate            *string       `json:"end_date"`
 	HardDueAt          *string       `json:"hard_due_at"`
 	NextReviewAt       *string       `json:"next_review_at"`
 	Outcome            *string       `json:"outcome"`
 	CompletionCriteria *string       `json:"completion_criteria"`
+	MetricName         *string       `json:"metric_name"`
+	MetricUnit         *string       `json:"metric_unit"`
+	TargetValue        *float64      `json:"target_value"`
+	CurrentValue       *float64      `json:"current_value"`
 	LegacyRef          *string       `json:"legacy_ref"`
 	Version            int64         `json:"version"`
 	CreatedAt          string        `json:"created_at"`
@@ -165,6 +220,104 @@ type Initiative struct {
 	Version     int64   `json:"version"`
 	CreatedAt   string  `json:"created_at"`
 	UpdatedAt   string  `json:"updated_at"`
+}
+
+// Objective is a direction with a horizon. It is never a task tree parent -
+// projects hang off initiatives, and the outcome system links to them
+// sideways through key results.
+type Objective struct {
+	ID          string  `json:"id"`
+	AreaID      *string `json:"area_id"`
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+	Horizon     *string `json:"horizon"`
+	Status      string  `json:"status"`
+	Version     int64   `json:"version"`
+	CreatedAt   string  `json:"created_at"`
+	UpdatedAt   string  `json:"updated_at"`
+}
+
+// KeyResult carries exactly one measurement definition, plus its weight
+// inside the objective it belongs to.
+type KeyResult struct {
+	ID           string   `json:"id"`
+	ObjectiveID  string   `json:"objective_id"`
+	Name         string   `json:"name"`
+	MetricName   string   `json:"metric_name"`
+	MetricUnit   *string  `json:"metric_unit"`
+	TargetValue  *float64 `json:"target_value"`
+	CurrentValue *float64 `json:"current_value"`
+	Weight       *float64 `json:"weight"`
+	Horizon      *string  `json:"horizon"`
+	Status       string   `json:"status"`
+	Version      int64    `json:"version"`
+	CreatedAt    string   `json:"created_at"`
+	UpdatedAt    string   `json:"updated_at"`
+}
+
+// Milestone is the dated point a body of work is aiming at. It is not a task
+// - it is not executable and consumes no capacity - and not a project - it
+// has no lifecycle of its own. Tasks point at it; it owns none of them
+// exclusively.
+type Milestone struct {
+	ID           string     `json:"id"`
+	ProjectID    *string    `json:"project_id"`
+	KeyResultID  *string    `json:"key_result_id"`
+	Name         string     `json:"name"`
+	Description  *string    `json:"description"`
+	TargetDate   string     `json:"target_date"`
+	Status       string     `json:"status"`
+	Importance   Importance `json:"importance"`
+	MetricName   *string    `json:"metric_name"`
+	MetricUnit   *string    `json:"metric_unit"`
+	TargetValue  *float64   `json:"target_value"`
+	CurrentValue *float64   `json:"current_value"`
+	Note         *string    `json:"note"`
+	LegacyRef    *string    `json:"legacy_ref"`
+	SortOrder    int        `json:"sort_order"`
+	Version      int64      `json:"version"`
+	CreatedAt    string     `json:"created_at"`
+	UpdatedAt    string     `json:"updated_at"`
+	ReachedAt    *string    `json:"reached_at"`
+}
+
+// MilestoneProgress is a milestone plus the state of the work aimed at it.
+type MilestoneProgress struct {
+	MilestoneID   string   `json:"milestone_id"`
+	Name          string   `json:"name"`
+	Status        string   `json:"status"`
+	Importance    string   `json:"importance"`
+	TargetDate    string   `json:"target_date"`
+	ReachedAt     *string  `json:"reached_at"`
+	MetricName    *string  `json:"metric_name"`
+	MetricUnit    *string  `json:"metric_unit"`
+	TargetValue   *float64 `json:"target_value"`
+	CurrentValue  *float64 `json:"current_value"`
+	ProjectID     *string  `json:"project_id"`
+	ProjectName   *string  `json:"project_name"`
+	AreaName      *string  `json:"area_name"`
+	KeyResultID   *string  `json:"key_result_id"`
+	KeyResultName *string  `json:"key_result_name"`
+	DaysLeft      *int     `json:"days_left"`
+	TaskCount     int      `json:"task_count"`
+	DoneCount     int      `json:"done_count"`
+	OpenTasks     int      `json:"open_tasks"`
+	OpenMinutes   int      `json:"open_minutes"`
+}
+
+// Dependency is one edge of the graph. Both ends name their entity type, so
+// an edge can cross levels - a KR can support another KR, a task can block a
+// cycle.
+type Dependency struct {
+	ID             string  `json:"id"`
+	FromType       string  `json:"from_type"`
+	FromID         string  `json:"from_id"`
+	ToType         string  `json:"to_type"`
+	ToID           string  `json:"to_id"`
+	DependencyType string  `json:"dependency_type"`
+	LagDays        *int    `json:"lag_days"`
+	Note           *string `json:"note"`
+	CreatedAt      string  `json:"created_at"`
 }
 
 // Event is one audit record.

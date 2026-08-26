@@ -243,11 +243,11 @@ func newDoctorCmd(opts *GlobalOptions) *cobra.Command {
 				}
 
 				store := ops.NewStore(db, rt.Clock)
-				if issues, err := store.QualityIssues(ctx); err != nil {
+				if count, err := store.QualityIssueCount(ctx); err != nil {
 					add("ops.data_quality", "warn", err.Error())
-				} else if len(issues) > 0 {
+				} else if count > 0 {
 					add("ops.data_quality", "warn",
-						fmt.Sprintf("%d data quality issue(s); see `mycontext ops status`", len(issues)))
+						fmt.Sprintf("%d data quality issue(s); see `mycontext ops status`", count))
 				} else {
 					add("ops.data_quality", "pass", "no issues")
 				}

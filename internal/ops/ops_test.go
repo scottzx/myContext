@@ -329,13 +329,13 @@ func TestSetReviewRemovesFromTodayButNotFromSight(t *testing.T) {
 		t.Fatalf("status: %v", err)
 	}
 	for _, e := range status.TodayAgenda {
-		if e.TaskID == task.ID && e.Reason == "scheduled" {
+		if e.EntityID == task.ID && e.Reason == "scheduled" {
 			t.Fatal("parked task is still on today's plan")
 		}
 	}
 	found := false
 	for _, e := range status.ReviewDue {
-		if e.TaskID == task.ID {
+		if e.EntityID == task.ID {
 			found = true
 		}
 	}
@@ -355,7 +355,7 @@ func TestImportantUnscheduledTaskIsSurfaced(t *testing.T) {
 	}
 	found := false
 	for _, e := range status.UnscheduledImportant {
-		if e.TaskID == task.ID {
+		if e.EntityID == task.ID {
 			found = true
 		}
 	}
@@ -608,7 +608,7 @@ func TestCompletingATaskClosesItsPlan(t *testing.T) {
 	}
 	day, _ := store.Day(ctx, today)
 	for _, e := range day.Entries {
-		if e.TaskID == task.ID {
+		if e.EntityID == task.ID {
 			t.Fatal("a completed task is still on the day board")
 		}
 	}
