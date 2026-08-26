@@ -76,6 +76,13 @@ func Execute(args []string) int {
 		newDocCmd(opts),
 		newMetricCmd(opts),
 		newBizCmd(opts),
+
+		// 006_content_product.sql: mode B (content, on our own channels) and
+		// mode C (product releases and the campaigns that promote either).
+		newChannelCmd(opts),
+		newContentCmd(opts),
+		newReleaseCmd(opts),
+		newCampaignCmd(opts),
 	)
 	// Registered last: it describes the tree that now exists.
 	root.AddCommand(newCatalogCmd(opts, root))

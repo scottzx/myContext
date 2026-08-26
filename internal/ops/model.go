@@ -85,6 +85,15 @@ var (
 	validDocumentFileRole     = set("original", "rendition", "attachment")
 	validContextEdgeType      = set("referred_by", "derived_from", "references", "relates_to", "inspired_by")
 	validInteractionChannel   = set("meeting", "call", "im", "email", "visit")
+
+	// Content/product vocabularies (006_content_product.sql). Each set is
+	// written in the same order as the SQL CHECK it mirrors.
+	validChannelPlatform     = set("xiaohongshu", "wechat", "douyin", "bilibili", "x", "offline")
+	validChannelStatus       = set("active", "paused", "archived")
+	validReleaseStatus       = set("planned", "developing", "released", "rolled_back")
+	validCampaignChannelType = set("online", "offline")
+	validCampaignStatus      = set("planned", "running", "ended", "cancelled")
+	validContentPieceStatus  = set("idea", "drafting", "review", "scheduled", "published", "archived")
 )
 
 // entityTables maps an entity type to the table that owns it, so an edge or a
