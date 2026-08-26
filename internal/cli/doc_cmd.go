@@ -22,11 +22,23 @@ func newDocCmd(opts *GlobalOptions) *cobra.Command {
 
 func docAddCmd(opts *GlobalOptions) *cobra.Command {
 	var in ops.AddDocumentInput
-	var bodyFile string
+	var bodyFile, sourceFile string
+	var renditions, attachments []string
 
 	cmd := &cobra.Command{
-		Use:         "add <title>",
-		Short:       "Record a document and optionally index its text",
+		Use:   "add <title>",
+		Short: "Capture a file into the library and record a document for it",
+		Long: "Capture a file into the library and record a document for it.\n\n" +
+			"--file names a real file anywhere on disk; it is copied into the library\n" +
+			"through the recoverable commit (stage, hash, immutable manifest, atomic\n" +
+			"rename, seal - technical design §15), so the bytes end up under\n" +
+			"library/YYYY/MM/DD because this command put them there, not because they\n" +
+			"were pre-placed. --rendition and --attachment (repeatable) capture extra\n" +
+			"files alongside it in the same commit, for cases like an .html original\n" +
+			"with a .pdf rendition.\n\n" +
+			"--path instead registers a file that is already inside the library at a\n" +
+			"known relative path; it does not copy anything and cannot be combined\n" +
+			"with --file/--rendition/--attachment.",
 		Annotations: map[string]string{"write": "true"},
 		Args:        cobra.MaximumNArgs(1),
 	}
@@ -40,10 +52,15 @@ func docAddCmd(opts *GlobalOptions) *cobra.Command {
 	cmd.Flags().StringVar(&in.AuthorName, "author", "", "who wrote it")
 	cmd.Flags().StringVar(&in.CanonicalURL, "url", "", "canonical URL, for external material")
 	cmd.Flags().StringVar(&in.UserNote, "note", "", "why this was kept")
-	cmd.Flags().StringVar(&in.RelPath, "path", "", "path of the original file, relative to the library root")
-	cmd.Flags().StringVar(&in.Mime, "mime", "", "MIME type of the original")
-	cmd.Flags().StringVar(&in.SHA256, "sha256", "", "sha256 of the original bytes")
-	cmd.Flags().StringVar(&in.FileRole, "file-role", "", "original|rendition|attachment")
+	cmd.Flags().StringVar(&sourceFile, "file", "", "path to a real file to capture into the library as the original")
+	cmd.Flags().StringArrayVar(&renditions, "rendition", nil,
+		"path to an additional rendition of the same document (e.g. a PDF export of an HTML original); repeatable")
+	cmd.Flags().StringArrayVar(&attachments, "attachment", nil,
+		"path to a supporting file to capture alongside the document; repeatable")
+	cmd.Flags().StringVar(&in.RelPath, "path", "", "legacy: rel_path of a file already inside the library")
+	cmd.Flags().StringVar(&in.Mime, "mime", "", "MIME type of the original (legacy --path only)")
+	cmd.Flags().StringVar(&in.SHA256, "sha256", "", "sha256 of the original bytes (legacy --path only)")
+	cmd.Flags().StringVar(&in.FileRole, "file-role", "", "original|rendition|attachment (legacy --path only)")
 	cmd.Flags().StringVar(&bodyFile, "body-file", "",
 		"read text from this file and index it, so the document is findable by content")
 
@@ -74,7 +91,24 @@ func docAddCmd(opts *GlobalOptions) *cobra.Command {
 		ctx, cancel := rt.Context()
 		defer cancel()
 
-		result, err := store.AddDocument(ctx, rt.WriteContext(), in)
+		wc := rt.WriteContext()
+		var result *ops.Result
+		if sourceFile != "" || len(renditions) > 0 || len(attachments) > 0 {
+			var atts []ops.AddDocumentAttachment
+			for _, p := range renditions {
+				atts = append(atts, ops.AddDocumentAttachment{SourcePath: p, Role: "rendition"})
+			}
+			for _, p := range attachments {
+				atts = append(atts, ops.AddDocumentAttachment{SourcePath: p, Role: "attachment"})
+			}
+			result, err = store.CaptureDocument(ctx, wc, rt.Layout, ops.CaptureDocumentInput{
+				AddDocumentInput: in,
+				SourceFile:       sourceFile,
+				Attachments:      atts,
+			})
+		} else {
+			result, err = store.AddDocument(ctx, wc, in)
+		}
 		if err != nil {
 			return rt.EmitError(command, err)
 		}
@@ -82,8 +116,15 @@ func docAddCmd(opts *GlobalOptions) *cobra.Command {
 		if body != nil && doc != nil {
 			// Indexing is a second write on purpose. It is derived data and can
 			// be rebuilt from the file, so it must not be able to fail the
-			// document creation it follows.
-			if _, err := store.IndexDocument(ctx, rt.WriteContext(), ops.IndexDocumentInput{
+			// document creation it follows. It gets its own request id, derived
+			// from the same base, rather than reusing wc.RequestID verbatim: two
+			// writes sharing one id would make the second collide with the
+			// first's idempotency record whenever the caller supplies an
+			// explicit --request-id (the auto-generated case never collides,
+			// since every WriteContext() call mints a fresh one).
+			indexWC := wc
+			indexWC.RequestID = wc.RequestID + ":index"
+			if _, err := store.IndexDocument(ctx, indexWC, ops.IndexDocumentInput{
 				DocumentID: doc.ID, Body: string(body),
 			}); err != nil {
 				return rt.EmitError(command, err)

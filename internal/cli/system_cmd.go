@@ -13,6 +13,7 @@ import (
 
 	mycontext "github.com/scottzx/mycontext"
 	"github.com/scottzx/mycontext/internal/adapters/sqlite"
+	"github.com/scottzx/mycontext/internal/library"
 	"github.com/scottzx/mycontext/internal/ops"
 	"github.com/scottzx/mycontext/internal/protocol"
 	"github.com/scottzx/mycontext/internal/system"
@@ -279,6 +280,18 @@ func newDoctorCmd(opts *GlobalOptions) *cobra.Command {
 				} else {
 					add("biz.search_index", "pass", "every document body is indexed")
 				}
+
+				// Reconcile the Library's journal against disk (§15.2). This can
+				// resolve an interrupted commit in the same pass (completing a
+				// rename/seal that a previous crash left half-finished), which is
+				// why "resumed" is reported separately from genuine problems: it
+				// never fabricates or deletes a file either way.
+				if report, err := store.VerifyLibrary(ctx, rt.Layout); err != nil {
+					add("library.integrity", "warn", err.Error())
+				} else {
+					status, detail := libraryIntegrityStatus(report)
+					add("library.integrity", status, detail)
+				}
 			}
 		}
 
@@ -304,6 +317,33 @@ func emitChecks(rt *Runtime, command string, checks []Check) int {
 		return protocol.ExitIntegrity
 	}
 	return code
+}
+
+// libraryIntegrityStatus turns one library.Verify pass into a single
+// doctor status/detail pair. A genuine problem (a journal entry whose files
+// are simply gone, or a manifest/asset that failed validation and was
+// quarantined) fails the check; a package Verify silently completed or set
+// aside for confirmation is reported as repairable rather than a failure,
+// since nothing was fabricated or lost - see library.Verify's doc comment.
+func libraryIntegrityStatus(report *library.Report) (status, detail string) {
+	counts := map[library.Action]int{}
+	for _, e := range report.Entries {
+		counts[e.Action]++
+	}
+	if n := counts[library.ActionIntegrityError] + counts[library.ActionQuarantined] + counts[library.ActionUnexpectedState]; n > 0 {
+		return "fail", fmt.Sprintf(
+			"%d package(s) need attention (integrity_error=%d quarantined=%d unexpected=%d); run `mycontext doc library verify`",
+			n, counts[library.ActionIntegrityError], counts[library.ActionQuarantined], counts[library.ActionUnexpectedState])
+	}
+	if n := counts[library.ActionResumedSealed] + counts[library.ActionOrphaned] + counts[library.ActionPendingAdoption]; n > 0 {
+		return "repairable", fmt.Sprintf(
+			"%d package(s) recovered or awaiting confirmation (resumed=%d orphaned=%d pending_adoption=%d)",
+			n, counts[library.ActionResumedSealed], counts[library.ActionOrphaned], counts[library.ActionPendingAdoption])
+	}
+	if len(report.Entries) == 0 {
+		return "pass", "no capture packages"
+	}
+	return "pass", fmt.Sprintf("%d package(s), all sealed and intact", len(report.Entries))
 }
 
 func summarise(checks []Check) map[string]int {

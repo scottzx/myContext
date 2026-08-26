@@ -3,10 +3,12 @@ package ops
 import (
 	"context"
 	"database/sql"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/scottzx/mycontext/internal/adapters/sqlite"
+	"github.com/scottzx/mycontext/internal/library"
 	"github.com/scottzx/mycontext/internal/protocol"
 	"github.com/scottzx/mycontext/internal/system"
 )
@@ -85,6 +87,174 @@ func (in *AddDocumentInput) normalize() error {
 		return protocol.BadInput("file_role requires rel_path")
 	}
 	return nil
+}
+
+// AddDocumentAttachment is one extra file captured alongside a document's
+// primary SourceFile - the .pdf rendition of an .html original, a screenshot
+// kept as evidence. Role is a document_files.role value, never a library
+// asset role: see CaptureDocument for how the two vocabularies map.
+type AddDocumentAttachment struct {
+	SourcePath string `json:"source_path"`
+	Role       string `json:"role,omitempty"` // rendition|attachment; default rendition
+}
+
+// CaptureDocumentInput is the payload of `document.capture`: like
+// AddDocumentInput, but SourceFile (and optionally Attachments) name real
+// files to ingest through the Library's recoverable commit (technical design
+// §15), rather than a RelPath the caller has already placed under the
+// library root.
+type CaptureDocumentInput struct {
+	AddDocumentInput
+	SourceFile  string                  `json:"source_file"`
+	Attachments []AddDocumentAttachment `json:"attachments,omitempty"`
+}
+
+func (in *CaptureDocumentInput) normalize() error {
+	if in.RelPath != "" || in.FileRole != "" {
+		return protocol.BadInput("--path registers a file already inside the library; " +
+			"use --file to capture a new file, not both")
+	}
+	if err := in.AddDocumentInput.normalize(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(in.SourceFile) == "" {
+		return protocol.BadInput("source_file is required")
+	}
+	for i := range in.Attachments {
+		if strings.TrimSpace(in.Attachments[i].SourcePath) == "" {
+			return protocol.BadInput("attachment %d: source_path is required", i)
+		}
+		if in.Attachments[i].Role == "" {
+			in.Attachments[i].Role = "rendition"
+		}
+		if in.Attachments[i].Role != "rendition" && in.Attachments[i].Role != "attachment" {
+			return protocol.BadInput("attachment %d: role must be rendition or attachment", i)
+		}
+	}
+	return nil
+}
+
+// libraryAssetRole maps a document_files.role (the business-level tag: which
+// file is the authoritative text vs. an alternate rendition vs. supporting
+// material) to the fixed physical folder a Capture Package files it under
+// (library.Role*, B+ design §9.4). The two vocabularies are deliberately
+// different: 'rendition' and 'original' are both primary, user-supplied
+// content so both land under RoleOriginal; only 'attachment' - genuinely
+// supporting material - goes under RoleAttachments.
+func libraryAssetRole(documentFileRole string) string {
+	if documentFileRole == "attachment" {
+		return library.RoleAttachments
+	}
+	return library.RoleOriginal
+}
+
+// CaptureDocument ingests SourceFile (and any Attachments) into the Library
+// via library.Commit - stage, hash, immutable manifest, atomic rename, seal
+// (§15.1) - then records the document and one document_files row per
+// captured asset in a single write. This is what makes `doc add --file`
+// put the file INTO the library because the tool did it, instead of
+// requiring the caller to have pre-copied it under library/YYYY/MM/DD first.
+//
+// The Library commit runs before, not inside, the ops.execute transaction
+// below: it is its own journalled file transaction against library_packages,
+// driven by the same wc.RequestID. A retried request_id replays both halves
+// idempotently - library.Commit returns the original package without
+// recopying bytes, and ops.execute's own idempotency ledger returns the
+// original document without inserting a second row - so calling this twice
+// with the same request_id is always safe.
+func (s *Store) CaptureDocument(ctx context.Context, wc WriteContext, layout system.Layout, in CaptureDocumentInput) (*Result, error) {
+	if err := in.normalize(); err != nil {
+		return nil, err
+	}
+	if err := wc.validate(); err != nil {
+		return nil, err
+	}
+
+	files := make([]library.InputFile, 0, 1+len(in.Attachments))
+	businessRoles := make([]string, 0, 1+len(in.Attachments))
+
+	files = append(files, library.InputFile{
+		SourcePath: in.SourceFile,
+		Role:       library.RoleOriginal,
+		Name:       filepath.Base(in.SourceFile),
+	})
+	businessRoles = append(businessRoles, "original")
+
+	for _, a := range in.Attachments {
+		files = append(files, library.InputFile{
+			SourcePath: a.SourcePath,
+			Role:       libraryAssetRole(a.Role),
+			Name:       filepath.Base(a.SourcePath),
+		})
+		businessRoles = append(businessRoles, a.Role)
+	}
+
+	journal := s.NewLibraryJournal()
+	commit, err := library.Commit(ctx, layout, journal, s.clock, library.CaptureInput{
+		RequestID:     wc.RequestID,
+		CaptureMethod: "cli:doc.capture",
+		Files:         files,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return s.execute(ctx, "document.capture", wc, in, func(ctx context.Context, tx *sql.Tx, now time.Time) (*Result, error) {
+		lineageID := ""
+		if in.SupersedesID != "" {
+			prev, err := loadDocument(ctx, tx, in.SupersedesID)
+			if err != nil {
+				return nil, err
+			}
+			lineageID = prev.LineageID
+		}
+		id := system.NewID("doc")
+		if lineageID == "" {
+			lineageID = id
+		}
+		ts := system.FormatTimestamp(now)
+		if _, err := tx.ExecContext(ctx, `
+            INSERT INTO documents (id, kind, title, occurred_at, captured_at, review_at,
+                                   lineage_id, supersedes_id, change_note, source, author_name,
+                                   canonical_url, user_note, legacy_ref, version, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)`,
+			id, in.Kind, in.Title, nullString(in.OccurredAt), nullString(in.CapturedAt),
+			nullString(in.ReviewAt), lineageID, nullString(in.SupersedesID), nullString(in.ChangeNote),
+			nullString(in.Source), nullString(in.AuthorName), nullString(in.CanonicalURL),
+			nullString(in.UserNote), nullString(in.LegacyRef), ts, ts); err != nil {
+			return nil, err
+		}
+
+		for i, asset := range commit.Manifest.Assets {
+			relPath, err := filepath.Rel(layout.Library(), filepath.Join(commit.FinalPath, asset.RelativePath))
+			if err != nil {
+				return nil, protocol.Wrap(err, protocol.CodeIntegrity, "cannot compute a library-relative path for a captured asset")
+			}
+			relPath = filepath.ToSlash(relPath)
+			fileID := system.NewID("df")
+			if _, err := tx.ExecContext(ctx, `
+                INSERT INTO document_files (id, doc_id, rel_path, mime, size_bytes, sha256,
+                                            role, sort_order, package_id, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?)`,
+				fileID, id, relPath, nullString(asset.MimeType), asset.SizeBytes,
+				nullString(asset.SHA256), businessRoles[i], i, commit.PackageID, ts); err != nil {
+				return nil, err
+			}
+		}
+
+		if err := recordEvent(ctx, tx, wc, now, "document", id, "created", nil, in); err != nil {
+			return nil, err
+		}
+		doc, err := loadDocument(ctx, tx, id)
+		if err != nil {
+			return nil, err
+		}
+		return &Result{
+			Data: doc,
+			Changes: []protocol.Change{{EntityType: "document", EntityID: id, EventType: "created",
+				Version: 1, ProjectionKeys: []string{"documents"}}},
+		}, nil
+	})
 }
 
 // AddDocument records one version of one artefact. It stores no path itself

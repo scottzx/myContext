@@ -74,6 +74,7 @@ func Execute(args []string) int {
 		newProductCmd(opts),
 		newTicketCmd(opts),
 		newDocCmd(opts),
+		newLibraryCmd(opts),
 		newMetricCmd(opts),
 		newBizCmd(opts),
 
