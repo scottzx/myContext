@@ -51,48 +51,7 @@ func (s *Store) CreateMilestone(ctx context.Context, wc WriteContext, in CreateM
 		return nil, protocol.BadInput("importance must be P0|P1|P2|P3")
 	}
 	return s.execute(ctx, "milestone.create", wc, in, func(ctx context.Context, tx *sql.Tx, now time.Time) (*Result, error) {
-		if in.ProjectID != "" {
-			if err := requireExists(ctx, tx, "projects", in.ProjectID, "project"); err != nil {
-				return nil, err
-			}
-		}
-		if in.KeyResultID != "" {
-			if err := requireExists(ctx, tx, "key_results", in.KeyResultID, "key result"); err != nil {
-				return nil, err
-			}
-		}
-		id := system.NewID("ms")
-		ts := system.FormatTimestamp(now)
-		var reachedAt any
-		if in.Status == "hit" {
-			reachedAt = ts
-		}
-		if _, err := tx.ExecContext(ctx, `
-            INSERT INTO milestones (id, project_id, key_result_id, name, description,
-                                    target_date, status, importance, metric_name, metric_unit,
-                                    target_value, current_value, note, legacy_ref,
-                                    sort_order, version, created_at, updated_at, reached_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?)`,
-			id, nullString(in.ProjectID), nullString(in.KeyResultID), in.Name,
-			nullString(in.Description), in.TargetDate, in.Status, in.Importance,
-			nullString(in.MetricName), nullString(in.MetricUnit),
-			nullFloat(in.TargetValue), nullFloat(in.CurrentValue),
-			nullString(in.Note), nullString(in.LegacyRef), in.SortOrder,
-			ts, ts, reachedAt); err != nil {
-			return nil, err
-		}
-		if err := recordEvent(ctx, tx, wc, now, "milestone", id, "created", nil, in); err != nil {
-			return nil, err
-		}
-		m, err := loadMilestone(ctx, tx, id)
-		if err != nil {
-			return nil, err
-		}
-		return &Result{
-			Data: m,
-			Changes: []protocol.Change{{EntityType: "milestone", EntityID: id, EventType: "created",
-				Version: 1, ProjectionKeys: []string{"milestones", "day:" + in.TargetDate}}},
-		}, nil
+		return createMilestoneTx(ctx, tx, wc, now, "", in)
 	})
 }
 

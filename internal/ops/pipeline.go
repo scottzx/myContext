@@ -71,50 +71,7 @@ func (s *Store) CreateOpportunity(ctx context.Context, wc WriteContext, in Creat
 		return nil, err
 	}
 	return s.execute(ctx, "opportunity.create", wc, in, func(ctx context.Context, tx *sql.Tx, now time.Time) (*Result, error) {
-		if err := requireExists(ctx, tx, "accounts", in.AccountID, "account"); err != nil {
-			return nil, err
-		}
-		if in.AreaID != "" {
-			if err := requireExists(ctx, tx, "areas", in.AreaID, "area"); err != nil {
-				return nil, err
-			}
-		}
-		if in.PrimaryContactID != "" {
-			if err := requireExists(ctx, tx, "contacts", in.PrimaryContactID, "contact"); err != nil {
-				return nil, err
-			}
-		}
-		id := system.NewID("opp")
-		ts := system.FormatTimestamp(now)
-		var closedAt any
-		if in.Stage == "won" || in.Stage == "lost" {
-			closedAt = ts
-		}
-		if _, err := tx.ExecContext(ctx, `
-            INSERT INTO opportunities (id, account_id, area_id, primary_contact_id, name,
-                                       source, source_batch, stage, est_amount, win_probability,
-                                       expected_sign_date, owner, next_step, lost_reason,
-                                       closed_at, legacy_ref, version, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)`,
-			id, in.AccountID, nullString(in.AreaID), nullString(in.PrimaryContactID), in.Name,
-			nullString(in.Source), nullString(in.SourceBatch), in.Stage, nullFloat(in.EstAmount),
-			nullFloat(in.WinProbability), nullString(in.ExpectedSignDate), nullString(in.Owner),
-			nullString(in.NextStep), nullString(in.LostReason), closedAt, nullString(in.LegacyRef),
-			ts, ts); err != nil {
-			return nil, err
-		}
-		if err := recordEvent(ctx, tx, wc, now, "opportunity", id, "created", nil, in); err != nil {
-			return nil, err
-		}
-		o, err := loadOpportunity(ctx, tx, id)
-		if err != nil {
-			return nil, err
-		}
-		return &Result{
-			Data: o,
-			Changes: []protocol.Change{{EntityType: "opportunity", EntityID: id, EventType: "created",
-				Version: 1, ProjectionKeys: []string{"opportunities", "account:" + in.AccountID}}},
-		}, nil
+		return createOpportunityTx(ctx, tx, wc, now, "", in)
 	})
 }
 
@@ -161,90 +118,7 @@ func (s *Store) UpdateOpportunity(ctx context.Context, wc WriteContext, in Updat
 		}
 	}
 	return s.execute(ctx, "opportunity.update", wc, in, func(ctx context.Context, tx *sql.Tx, now time.Time) (*Result, error) {
-		before, err := loadOpportunity(ctx, tx, in.OpportunityID)
-		if err != nil {
-			return nil, err
-		}
-		if before.Version != in.ExpectedVersion {
-			return nil, protocol.VersionConflict("opportunity", in.ExpectedVersion, before.Version)
-		}
-		if in.PrimaryContactID != nil && *in.PrimaryContactID != "" {
-			if err := requireExists(ctx, tx, "contacts", *in.PrimaryContactID, "contact"); err != nil {
-				return nil, err
-			}
-		}
-
-		eventType := "updated"
-		set := newPatch()
-		set.str("name", in.Name)
-		set.str("source", in.Source)
-		set.str("source_batch", in.SourceBatch)
-		set.str("primary_contact_id", in.PrimaryContactID)
-		set.str("expected_sign_date", in.ExpectedSignDate)
-		set.str("owner", in.Owner)
-		set.str("next_step", in.NextStep)
-		set.str("note", in.Note)
-		set.flt("est_amount", in.EstAmount)
-		set.flt("win_probability", in.WinProbability)
-
-		if in.Stage != nil && *in.Stage != before.Stage {
-			// A hard rule: leaving a terminal stage is how a closed deal
-			// quietly reopens. Reaching a terminal stage needs no reason -
-			// closing a deal is the normal, expected path.
-			terminal := before.Stage == "won" || before.Stage == "lost"
-			if terminal && wc.Reason == "" {
-				return nil, &protocol.AppError{
-					Code:    protocol.CodeForbidden,
-					Message: "moving an opportunity out of a won/lost stage requires --reason",
-				}
-			}
-			set.raw("stage", *in.Stage)
-			switch *in.Stage {
-			case "won":
-				eventType = "won"
-				if before.ClosedAt == nil {
-					set.raw("closed_at", system.FormatTimestamp(now))
-				}
-			case "lost":
-				eventType = "lost"
-				reason := before.LostReason
-				if in.LostReason != nil {
-					reason = in.LostReason
-				}
-				if reason == nil || *reason == "" {
-					return nil, protocol.BadInput("stage lost requires lost_reason")
-				}
-				if before.ClosedAt == nil {
-					set.raw("closed_at", system.FormatTimestamp(now))
-				}
-			default:
-				eventType = "stage_changed"
-				if before.ClosedAt != nil {
-					set.raw("closed_at", nil)
-				}
-			}
-		}
-		if in.LostReason != nil {
-			set.str("lost_reason", in.LostReason)
-		}
-		if set.empty() {
-			return nil, protocol.BadInput("no fields to update")
-		}
-		if err := set.apply(ctx, tx, "opportunities", "opportunity", in.OpportunityID, in.ExpectedVersion, now); err != nil {
-			return nil, err
-		}
-		after, err := loadOpportunity(ctx, tx, in.OpportunityID)
-		if err != nil {
-			return nil, err
-		}
-		if err := recordEvent(ctx, tx, wc, now, "opportunity", in.OpportunityID, eventType, before, after); err != nil {
-			return nil, err
-		}
-		return &Result{
-			Data: after,
-			Changes: []protocol.Change{{EntityType: "opportunity", EntityID: in.OpportunityID,
-				EventType: eventType, Version: after.Version, ProjectionKeys: []string{"opportunities"}}},
-		}, nil
+		return updateOpportunityTx(ctx, tx, wc, now, in)
 	})
 }
 

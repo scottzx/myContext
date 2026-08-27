@@ -55,29 +55,7 @@ func (s *Store) CreateAccount(ctx context.Context, wc WriteContext, in CreateAcc
 		return nil, err
 	}
 	return s.execute(ctx, "account.create", wc, in, func(ctx context.Context, tx *sql.Tx, now time.Time) (*Result, error) {
-		id := system.NewID("acct")
-		ts := system.FormatTimestamp(now)
-		if _, err := tx.ExecContext(ctx, `
-            INSERT INTO accounts (id, name, short_name, account_type, industry, region,
-                                  status, owner, note, legacy_ref, version, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,1,?,?)`,
-			id, in.Name, nullString(in.ShortName), in.AccountType, nullString(in.Industry),
-			nullString(in.Region), in.Status, nullString(in.Owner), nullString(in.Note),
-			nullString(in.LegacyRef), ts, ts); err != nil {
-			return nil, err
-		}
-		if err := recordEvent(ctx, tx, wc, now, "account", id, "created", nil, in); err != nil {
-			return nil, err
-		}
-		acct, err := loadAccount(ctx, tx, id)
-		if err != nil {
-			return nil, err
-		}
-		return &Result{
-			Data: acct,
-			Changes: []protocol.Change{{EntityType: "account", EntityID: id, EventType: "created",
-				Version: 1, ProjectionKeys: []string{"accounts"}}},
-		}, nil
+		return createAccountTx(ctx, tx, wc, now, "", in)
 	})
 }
 
@@ -110,44 +88,7 @@ func (s *Store) UpdateAccount(ctx context.Context, wc WriteContext, in UpdateAcc
 		return nil, protocol.BadInput("status must be active|dormant|archived")
 	}
 	return s.execute(ctx, "account.update", wc, in, func(ctx context.Context, tx *sql.Tx, now time.Time) (*Result, error) {
-		before, err := loadAccount(ctx, tx, in.AccountID)
-		if err != nil {
-			return nil, err
-		}
-		if before.Version != in.ExpectedVersion {
-			return nil, protocol.VersionConflict("account", in.ExpectedVersion, before.Version)
-		}
-		set := newPatch()
-		set.str("name", in.Name)
-		set.str("short_name", in.ShortName)
-		set.str("account_type", in.AccountType)
-		set.str("industry", in.Industry)
-		set.str("region", in.Region)
-		set.str("status", in.Status)
-		set.str("owner", in.Owner)
-		set.str("note", in.Note)
-		if set.empty() {
-			return nil, protocol.BadInput("no fields to update")
-		}
-		if err := set.apply(ctx, tx, "accounts", "account", in.AccountID, in.ExpectedVersion, now); err != nil {
-			return nil, err
-		}
-		eventType := "updated"
-		if in.Status != nil {
-			eventType = "status_changed"
-		}
-		after, err := loadAccount(ctx, tx, in.AccountID)
-		if err != nil {
-			return nil, err
-		}
-		if err := recordEvent(ctx, tx, wc, now, "account", in.AccountID, eventType, before, after); err != nil {
-			return nil, err
-		}
-		return &Result{
-			Data: after,
-			Changes: []protocol.Change{{EntityType: "account", EntityID: in.AccountID,
-				EventType: eventType, Version: after.Version, ProjectionKeys: []string{"accounts"}}},
-		}, nil
+		return updateAccountTx(ctx, tx, wc, now, in)
 	})
 }
 
@@ -279,32 +220,7 @@ func (s *Store) CreateContact(ctx context.Context, wc WriteContext, in CreateCon
 		return nil, err
 	}
 	return s.execute(ctx, "contact.create", wc, in, func(ctx context.Context, tx *sql.Tx, now time.Time) (*Result, error) {
-		if err := requireExists(ctx, tx, "accounts", in.AccountID, "account"); err != nil {
-			return nil, err
-		}
-		id := system.NewID("ctc")
-		ts := system.FormatTimestamp(now)
-		if _, err := tx.ExecContext(ctx, `
-            INSERT INTO contacts (id, account_id, name, title, deal_role, phone, email,
-                                  wechat, status, note, legacy_ref, version, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?)`,
-			id, in.AccountID, in.Name, nullString(in.Title), nullString(in.DealRole),
-			nullString(in.Phone), nullString(in.Email), nullString(in.Wechat), in.Status,
-			nullString(in.Note), nullString(in.LegacyRef), ts, ts); err != nil {
-			return nil, err
-		}
-		if err := recordEvent(ctx, tx, wc, now, "contact", id, "created", nil, in); err != nil {
-			return nil, err
-		}
-		c, err := loadContact(ctx, tx, id)
-		if err != nil {
-			return nil, err
-		}
-		return &Result{
-			Data: c,
-			Changes: []protocol.Change{{EntityType: "contact", EntityID: id, EventType: "created",
-				Version: 1, ProjectionKeys: []string{"contacts", "account:" + in.AccountID}}},
-		}, nil
+		return createContactTx(ctx, tx, wc, now, "", in)
 	})
 }
 
@@ -338,50 +254,7 @@ func (s *Store) UpdateContact(ctx context.Context, wc WriteContext, in UpdateCon
 		return nil, protocol.BadInput("status must be active|inactive|left|archived")
 	}
 	return s.execute(ctx, "contact.update", wc, in, func(ctx context.Context, tx *sql.Tx, now time.Time) (*Result, error) {
-		before, err := loadContact(ctx, tx, in.ContactID)
-		if err != nil {
-			return nil, err
-		}
-		if before.Version != in.ExpectedVersion {
-			return nil, protocol.VersionConflict("contact", in.ExpectedVersion, before.Version)
-		}
-		if in.AccountID != nil && *in.AccountID != "" {
-			if err := requireExists(ctx, tx, "accounts", *in.AccountID, "account"); err != nil {
-				return nil, err
-			}
-		}
-		set := newPatch()
-		set.str("name", in.Name)
-		set.str("title", in.Title)
-		set.str("deal_role", in.DealRole)
-		set.str("phone", in.Phone)
-		set.str("email", in.Email)
-		set.str("wechat", in.Wechat)
-		set.str("status", in.Status)
-		set.str("note", in.Note)
-		set.str("account_id", in.AccountID)
-		if set.empty() {
-			return nil, protocol.BadInput("no fields to update")
-		}
-		if err := set.apply(ctx, tx, "contacts", "contact", in.ContactID, in.ExpectedVersion, now); err != nil {
-			return nil, err
-		}
-		eventType := "updated"
-		if in.Status != nil {
-			eventType = "status_changed"
-		}
-		after, err := loadContact(ctx, tx, in.ContactID)
-		if err != nil {
-			return nil, err
-		}
-		if err := recordEvent(ctx, tx, wc, now, "contact", in.ContactID, eventType, before, after); err != nil {
-			return nil, err
-		}
-		return &Result{
-			Data: after,
-			Changes: []protocol.Change{{EntityType: "contact", EntityID: in.ContactID,
-				EventType: eventType, Version: after.Version, ProjectionKeys: []string{"contacts"}}},
-		}, nil
+		return updateContactTx(ctx, tx, wc, now, in)
 	})
 }
 
@@ -815,32 +688,7 @@ func (s *Store) LogInteraction(ctx context.Context, wc WriteContext, in LogInter
 		return nil, err
 	}
 	return s.execute(ctx, "interaction.log", wc, in, func(ctx context.Context, tx *sql.Tx, now time.Time) (*Result, error) {
-		if err := requireExists(ctx, tx, entityTables[in.SubjectType], in.SubjectID, in.SubjectType); err != nil {
-			return nil, err
-		}
-		id := system.NewID("itx")
-		ts := system.FormatTimestamp(now)
-		if _, err := tx.ExecContext(ctx, `
-            INSERT INTO interactions (id, subject_type, subject_id, occurred_at, channel,
-                                      summary, participants, owner, created_at)
-            VALUES (?,?,?,?,?,?,?,?,?)`,
-			id, in.SubjectType, in.SubjectID, in.OccurredAt, in.Channel,
-			nullString(in.Summary), nullString(in.Participants), nullString(in.Owner), ts); err != nil {
-			return nil, err
-		}
-		if err := recordEvent(ctx, tx, wc, now, in.SubjectType, in.SubjectID, "note", nil, in); err != nil {
-			return nil, err
-		}
-		itx := Interaction{ID: id, SubjectType: in.SubjectType, SubjectID: in.SubjectID,
-			OccurredAt: in.OccurredAt, Channel: in.Channel, CreatedAt: ts}
-		assignOptional(&itx.Summary, in.Summary)
-		assignOptional(&itx.Participants, in.Participants)
-		assignOptional(&itx.Owner, in.Owner)
-		return &Result{
-			Data: itx,
-			Changes: []protocol.Change{{EntityType: in.SubjectType, EntityID: in.SubjectID,
-				EventType: "note", ProjectionKeys: []string{"interactions"}}},
-		}, nil
+		return logInteractionTx(ctx, tx, wc, now, "", in)
 	})
 }
 

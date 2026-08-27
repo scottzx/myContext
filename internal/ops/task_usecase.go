@@ -28,10 +28,16 @@ type CreateTaskInput struct {
 	TargetValue        *float64 `json:"target_value,omitempty"`
 	CurrentValue       *float64 `json:"current_value,omitempty"`
 	WaitingFor         string   `json:"waiting_for,omitempty"`
-	PlannedDate        string   `json:"planned_date,omitempty"`
-	TimeSlot           string   `json:"time_slot,omitempty"`
-	PlannedMinutes     int      `json:"planned_minutes,omitempty"`
-	LegacyRef          string   `json:"legacy_ref,omitempty"`
+	// SubjectType/SubjectID say which business object this action is about,
+	// separately from project_id, which says where it is scheduled. A task to
+	// revise a proposal belongs to the pre-sales project AND is about the
+	// opportunity; collapsing the two would lose one of those answers.
+	SubjectType    string `json:"subject_type,omitempty"`
+	SubjectID      string `json:"subject_id,omitempty"`
+	PlannedDate    string `json:"planned_date,omitempty"`
+	TimeSlot       string `json:"time_slot,omitempty"`
+	PlannedMinutes int    `json:"planned_minutes,omitempty"`
+	LegacyRef      string `json:"legacy_ref,omitempty"`
 }
 
 func (in *CreateTaskInput) normalize() error {
@@ -79,6 +85,12 @@ func (in *CreateTaskInput) normalize() error {
 	if in.TimeSlot != "" && in.PlannedDate == "" {
 		return protocol.BadInput("time_slot requires planned_date")
 	}
+	if (in.SubjectType == "") != (in.SubjectID == "") {
+		return protocol.BadInput("subject_type and subject_id must be given together")
+	}
+	if in.SubjectType != "" && !validEntityType[in.SubjectType] {
+		return protocol.BadInput("subject_type must be one of %s", EntityTypeList())
+	}
 	return nil
 }
 
@@ -89,63 +101,7 @@ func (s *Store) CreateTask(ctx context.Context, wc WriteContext, in CreateTaskIn
 		return nil, err
 	}
 	return s.execute(ctx, "task.create", wc, in, func(ctx context.Context, tx *sql.Tx, now time.Time) (*Result, error) {
-		if in.ProjectID != "" {
-			if err := requireExists(ctx, tx, "projects", in.ProjectID, "project"); err != nil {
-				return nil, err
-			}
-		}
-		if in.ParentTaskID != "" {
-			if err := requireExists(ctx, tx, "tasks", in.ParentTaskID, "parent task"); err != nil {
-				return nil, err
-			}
-		}
-		if in.MilestoneID != "" {
-			if err := requireExists(ctx, tx, "milestones", in.MilestoneID, "milestone"); err != nil {
-				return nil, err
-			}
-		}
-
-		id := system.NewID("task")
-		ts := system.FormatTimestamp(now)
-		_, err := tx.ExecContext(ctx, `
-            INSERT INTO tasks (id, project_id, parent_task_id, milestone_id, title, detail,
-                               completion_criteria, status, importance, hard_due_at,
-                               earliest_start_at, next_review_at, estimate_minutes,
-                               metric_name, metric_unit, target_value, current_value,
-                               waiting_for, legacy_ref, version, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)`,
-			id, nullString(in.ProjectID), nullString(in.ParentTaskID),
-			nullString(in.MilestoneID), in.Title,
-			nullString(in.Detail), nullString(in.CompletionCriteria), in.Status, in.Importance,
-			nullString(in.HardDueAt), nullString(in.EarliestStartAt), nullString(in.NextReviewAt),
-			nullInt(in.EstimateMinutes), nullString(in.MetricName), nullString(in.MetricUnit),
-			nullFloat(in.TargetValue), nullFloat(in.CurrentValue),
-			nullString(in.WaitingFor), nullString(in.LegacyRef), ts, ts)
-		if err != nil {
-			return nil, err
-		}
-
-		if in.PlannedDate != "" {
-			if err := insertSchedule(ctx, tx, wc, now, system.NewID("sch"), id,
-				in.PlannedDate, in.TimeSlot, in.PlannedMinutes, ""); err != nil {
-				return nil, err
-			}
-		}
-		if err := recordEvent(ctx, tx, wc, now, "task", id, "created", nil, in); err != nil {
-			return nil, err
-		}
-
-		task, err := loadTaskTx(ctx, tx, id)
-		if err != nil {
-			return nil, err
-		}
-		return &Result{
-			Data: task,
-			Changes: []protocol.Change{{
-				EntityType: "task", EntityID: id, EventType: "created", Version: 1,
-				ProjectionKeys: projectionKeysForTask(task),
-			}},
-		}, nil
+		return createTaskTx(ctx, tx, wc, now, "", in)
 	})
 }
 

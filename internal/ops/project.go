@@ -222,54 +222,7 @@ func (s *Store) CreateProject(ctx context.Context, wc WriteContext, in CreatePro
 		return nil, err
 	}
 	return s.execute(ctx, "project.create", wc, in, func(ctx context.Context, tx *sql.Tx, now time.Time) (*Result, error) {
-		if in.InitiativeID != "" {
-			if err := requireExists(ctx, tx, "initiatives", in.InitiativeID, "initiative"); err != nil {
-				return nil, err
-			}
-		}
-		if in.ParentProjectID != "" {
-			if err := requireExists(ctx, tx, "projects", in.ParentProjectID, "parent project"); err != nil {
-				return nil, err
-			}
-		}
-		id := system.NewID("proj")
-		if in.Kind == "sprint" {
-			id = system.NewID("sprint")
-		}
-		ts := system.FormatTimestamp(now)
-		_, err := tx.ExecContext(ctx, `
-            INSERT INTO projects (id, initiative_id, parent_project_id, kind, name, description,
-                                  status, stage, importance, start_date, end_date,
-                                  target_date, hard_due_at, next_review_at, outcome,
-                                  completion_criteria, metric_name, metric_unit,
-                                  target_value, current_value, legacy_ref, sort_order,
-                                  version, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)`,
-			id, nullString(in.InitiativeID), nullString(in.ParentProjectID), in.Kind,
-			in.Name, nullString(in.Description), in.Status, nullString(in.Stage), in.Importance,
-			nullString(in.StartDate), nullString(in.EndDate),
-			nullString(in.TargetDate), nullString(in.HardDueAt),
-			nullString(in.NextReviewAt), nullString(in.Outcome), nullString(in.CompletionCriteria),
-			nullString(in.MetricName), nullString(in.MetricUnit),
-			nullFloat(in.TargetValue), nullFloat(in.CurrentValue),
-			nullString(in.LegacyRef), in.SortOrder, ts, ts)
-		if err != nil {
-			return nil, err
-		}
-		if err := recordEvent(ctx, tx, wc, now, "project", id, "created", nil, in); err != nil {
-			return nil, err
-		}
-		project, err := loadProjectTx(ctx, tx, id)
-		if err != nil {
-			return nil, err
-		}
-		return &Result{
-			Data: project,
-			Changes: []protocol.Change{{
-				EntityType: "project", EntityID: id, EventType: "created", Version: 1,
-				ProjectionKeys: []string{"projects", "project:" + id},
-			}},
-		}, nil
+		return createProjectTx(ctx, tx, wc, now, "", in)
 	})
 }
 
