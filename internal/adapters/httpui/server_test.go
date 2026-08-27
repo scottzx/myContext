@@ -159,10 +159,18 @@ func TestInvokeOpsStatus(t *testing.T) {
 	}
 }
 
+// argumentRequired names the advertised reads that address ONE row and so
+// cannot answer `{}`. For them the contract below is that the server says
+// BAD_INPUT, not that it invents an empty answer: "which case?" has no sensible
+// default, and returning null would hide a client bug.
+var argumentRequired = map[string]bool{
+	"inbox.get": true, "case.get": true, "case.timeline": true, "case.next-actions": true,
+}
+
 // TestInvokeEveryWhitelistedOperation asserts every operation the
 // capabilities endpoint advertises is actually reachable through invoke and
-// returns ok:true against a freshly migrated (empty) ops.db - an empty list
-// is a correct read-only answer, a 500 is not.
+// never fails as a server error against a freshly migrated (empty) ops.db - an
+// empty list is a correct read-only answer, a 500 is not.
 func TestInvokeEveryWhitelistedOperation(t *testing.T) {
 	ts, token := newTestServer(t)
 
@@ -193,12 +201,22 @@ func TestInvokeEveryWhitelistedOperation(t *testing.T) {
 			if err != nil {
 				t.Fatalf("post: %v", err)
 			}
-			if resp.StatusCode != http.StatusOK {
-				t.Fatalf("status %d, want 200", resp.StatusCode)
+			want := http.StatusOK
+			if argumentRequired[op] {
+				want = http.StatusBadRequest
+			}
+			if resp.StatusCode != want {
+				t.Fatalf("status %d, want %d", resp.StatusCode, want)
 			}
 			var env protocol.Envelope
 			if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
 				t.Fatalf("decode: %v", err)
+			}
+			if argumentRequired[op] {
+				if env.OK || env.Error.Code != protocol.CodeBadInput {
+					t.Fatalf("operation %q should ask for its argument: %+v", op, env.Error)
+				}
+				return
 			}
 			if !env.OK {
 				t.Fatalf("operation %q did not return ok:true: %+v", op, env.Error)

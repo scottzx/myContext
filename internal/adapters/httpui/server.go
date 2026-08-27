@@ -24,6 +24,7 @@ import (
 
 	"github.com/scottzx/mycontext/internal/ops"
 	"github.com/scottzx/mycontext/internal/protocol"
+	"github.com/scottzx/mycontext/internal/system"
 )
 
 const tokenHeader = "X-Mycontext-Token"
@@ -34,6 +35,15 @@ type Options struct {
 	IdleTimeout time.Duration
 	CLIVersion  string
 	Root        string
+
+	// Layout is needed because the review screen reads the sealed original out
+	// of the Library, and confirm re-hashes the quoted ranges against it.
+	Layout system.Layout
+
+	// Write says whether this instance may mutate. It mirrors how the store was
+	// opened: advertising a write capability the database cannot honour would
+	// let the UI offer a confirm button that fails at click time.
+	Write bool
 }
 
 // Server is the localhost adapter. One instance per `ui serve` invocation.
@@ -86,6 +96,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/health", s.handleHealth)
 	mux.HandleFunc("GET /api/v1/capabilities", s.withGuard(s.handleCapabilities))
 	mux.HandleFunc("POST /api/v1/invoke", s.withGuard(s.handleInvoke))
+	// Deliberately NOT an invoke operation: this is the one capability the CLI
+	// and agents must not have, so it does not live on the generic whitelist
+	// they share (design §3).
+	mux.HandleFunc("POST /api/v1/confirmation-grant", s.withGuard(s.handleConfirmationGrant))
 	mux.Handle("/", http.FileServerFS(s.assets))
 	return mux
 }
@@ -110,7 +124,11 @@ func (s *Server) Serve(ctx context.Context) error {
 	go func() { shutdownErr <- httpServer.Serve(listener) }()
 
 	fmt.Printf("mycontext ui listening on %s/?token=%s\n", s.origin, s.token)
-	fmt.Println("read-only · foreground · Ctrl-C to stop")
+	mode := "read-only"
+	if s.opts.Write {
+		mode = "read-write"
+	}
+	fmt.Printf("%s · foreground · Ctrl-C to stop\n", mode)
 
 	for {
 		select {
@@ -191,21 +209,41 @@ type capabilitiesResponse struct {
 	CLIVersion string   `json:"cli_version"`
 }
 
-// queryOperations is the whitelist for this build: read-only, ops.db only.
-// There is deliberately no generic SQL or per-table endpoint (§16.1).
+// queryOperations is the read whitelist for this build: ops.db only, no
+// generic SQL and no per-table endpoint (§16.1).
 var queryOperations = []string{
 	"ops.status", "project.tree",
 	"account.list", "contact.list", "opportunity.list", "application.list", "contract.list",
 	"product.list", "ticket.list", "document.list", "document.search",
 	"biz.quality", "biz.pipeline", "receivable.list",
+	// 009/010: the inbox review screen and the case workspace.
+	"inbox.list", "inbox.get",
+	"case.list", "case.get", "case.timeline", "case.next-actions",
+}
+
+// writeOperations are advertised only when this instance was opened read-write.
+// inbox.confirm is here, but a caller still cannot use it without a grant from
+// the endpoint above - the whitelist says which operations exist, not who may
+// materialise business facts.
+var writeOperations = []string{
+	"inbox.capture-text", "inbox.propose", "inbox.archive",
+	"candidate.revise", "inbox.confirm",
+}
+
+func (s *Server) operations() []string {
+	ops := append([]string(nil), queryOperations...)
+	if s.opts.Write {
+		ops = append(ops, writeOperations...)
+	}
+	return ops
 }
 
 func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, capabilitiesResponse{
 		Protocol:   protocol.Version,
 		Read:       true,
-		Write:      false,
-		Operations: queryOperations,
+		Write:      s.opts.Write,
+		Operations: s.operations(),
 		Root:       s.opts.Root,
 		CLIVersion: s.opts.CLIVersion,
 	})
@@ -237,6 +275,19 @@ type listInput struct {
 	OpenOnly    bool   `json:"open_only,omitempty"`
 	Search      string `json:"search,omitempty"`
 	Query       string `json:"query,omitempty"`
+	ID          string `json:"id,omitempty"`
+	RootType    string `json:"root_type,omitempty"`
+	RootID      string `json:"root_id,omitempty"`
+	Cursor      string `json:"cursor,omitempty"`
+}
+
+// rootType defaults to the only root V1a has. 011 adds external_program and
+// standalone application, at which point callers must say which they mean.
+func (l listInput) rootType() string {
+	if l.RootType == "" {
+		return "opportunity"
+	}
+	return l.RootType
 }
 
 // decodeInput parses an operation's input, treating an empty/absent body the
@@ -345,9 +396,43 @@ func (s *Server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 				AccountID: in.AccountID, Limit: in.Limit,
 			})
 		}
+	case "inbox.list":
+		if err = decodeInput(req.Input, &in); err == nil {
+			data, err = s.store.ListInboxPending(ctx, in.Limit)
+		}
+	case "inbox.get":
+		if err = decodeInput(req.Input, &in); err == nil {
+			if in.ID == "" {
+				err = protocol.BadInput("id is required")
+			} else {
+				data, err = s.store.GetInbox(ctx, s.opts.Layout, in.ID)
+			}
+		}
+	case "case.list":
+		if err = decodeInput(req.Input, &in); err == nil {
+			data, err = s.store.ListCases(ctx, ops.CaseFilter{
+				RootType: in.RootType, Stage: in.Stage, OpenOnly: in.OpenOnly,
+				Search: in.Search, Limit: in.Limit,
+			})
+		}
+	case "case.get":
+		if err = decodeInput(req.Input, &in); err == nil {
+			data, err = s.store.GetCase(ctx, in.rootType(), in.RootID)
+		}
+	case "case.timeline":
+		if err = decodeInput(req.Input, &in); err == nil {
+			data, err = s.store.GetCaseTimeline(ctx, in.rootType(), in.RootID, in.Cursor, in.Limit)
+		}
+	case "case.next-actions":
+		if err = decodeInput(req.Input, &in); err == nil {
+			data, err = s.store.GetCaseNextActions(ctx, in.rootType(), in.RootID)
+		}
 	default:
-		err = protocol.BadInput("unsupported operation %q; this build only supports: %s",
-			req.Operation, strings.Join(queryOperations, ", "))
+		data, err = s.invokeWrite(ctx, req, start)
+		if err == errUnsupportedOperation {
+			err = protocol.BadInput("unsupported operation %q; this build supports: %s",
+				req.Operation, strings.Join(s.operations(), ", "))
+		}
 	}
 	s.writeEnvelope(w, req.Operation, data, err, start)
 }
@@ -384,12 +469,21 @@ func asAppError(err error) *protocol.AppError {
 
 func httpStatusFor(code string) int {
 	switch code {
-	case protocol.CodeBadInput:
+	case protocol.CodeBadInput, protocol.CodeIncompleteReview, protocol.CodeMissingField,
+		protocol.CodeUnsupportedField, protocol.CodeUnsupportedAction,
+		protocol.CodeUnsupportedRel, protocol.CodeUnsupportedValue:
 		return http.StatusBadRequest
 	case protocol.CodeNotFound:
 		return http.StatusNotFound
-	case protocol.CodeForbidden:
+	case protocol.CodeForbidden, protocol.CodeGrantInvalid, protocol.CodeGrantUsed,
+		protocol.CodeSourceChanged:
 		return http.StatusForbidden
+	// A review conflict is the user's to resolve, not a server failure: 409
+	// keeps it out of the frontend's "something broke" path.
+	case protocol.CodeVersionConflict, protocol.CodeIdempotency, protocol.CodeAmbiguous,
+		protocol.CodeDependencyConflict, protocol.CodeRelationCardinal,
+		protocol.CodeCandidateCycle:
+		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError
 	}
