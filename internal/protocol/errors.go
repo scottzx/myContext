@@ -28,8 +28,14 @@ func (e *AppError) ExitCode() int {
 		return ExitBadInput
 	case CodeNotFound:
 		return ExitNotFound
-	case CodeAmbiguous, CodeVersionConflict, CodeIdempotency:
+	case CodeAmbiguous, CodeVersionConflict, CodeIdempotency,
+		CodeDependencyConflict, CodeRelationCardinal, CodeCandidateCycle:
 		return ExitConflict
+	case CodeIncompleteReview, CodeMissingField, CodeUnsupportedField,
+		CodeUnsupportedAction, CodeUnsupportedRel, CodeUnsupportedValue:
+		return ExitBadInput
+	case CodeSourceChanged, CodeGrantInvalid, CodeGrantUsed:
+		return ExitForbidden
 	case CodeIncompatible:
 		return ExitIncompatible
 	case CodeBusy:
@@ -86,6 +92,13 @@ func Incompatible(format string, args ...any) *AppError {
 }
 
 func Integrity(format string, args ...any) *AppError { return newErr(CodeIntegrity, format, args...) }
+
+// Review reports one of the intake refusals above. Details is free-form so a
+// caller can attach the JSON path, the conflicting ids or the candidate paths
+// the review UI needs to highlight the right row.
+func Review(code, message string, details any) *AppError {
+	return &AppError{Code: code, Message: message, Details: details}
+}
 
 // Wrap turns any error into an AppError, preserving one if it already is.
 func Wrap(err error, code, message string) *AppError {

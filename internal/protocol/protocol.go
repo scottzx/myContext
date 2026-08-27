@@ -37,6 +37,25 @@ const (
 	CodeInternal        = "INTERNAL"
 )
 
+// Intake error codes (design §6). Review is a conversation with a person, so
+// every way a confirmation can be refused has its own code and its own JSON
+// path: "it did not work" is useless to a UI that has to point at the field.
+// None of these are retryable - each one needs a human to change something.
+const (
+	CodeIncompleteReview   = "INCOMPLETE_REVIEW"
+	CodeDependencyConflict = "DEPENDENCY_CONFLICT"
+	CodeRelationCardinal   = "RELATION_CARDINALITY_CONFLICT"
+	CodeSourceChanged      = "SOURCE_CHANGED"
+	CodeCandidateCycle     = "CANDIDATE_CYCLE"
+	CodeGrantInvalid       = "CONFIRMATION_GRANT_INVALID"
+	CodeGrantUsed          = "CONFIRMATION_GRANT_USED"
+	CodeMissingField       = "MISSING_REQUIRED_FIELD"
+	CodeUnsupportedField   = "UNSUPPORTED_FIELD"
+	CodeUnsupportedAction  = "UNSUPPORTED_ACTION_FIELD"
+	CodeUnsupportedRel     = "UNSUPPORTED_RELATION"
+	CodeUnsupportedValue   = "UNSUPPORTED_VALUE"
+)
+
 // Envelope is the single response shape for every command, in both success
 // and failure. Callers can always read protocol/ok/command/meta.
 type Envelope struct {
