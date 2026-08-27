@@ -78,6 +78,12 @@ func Execute(args []string) int {
 		newMetricCmd(opts),
 		newBizCmd(opts),
 
+		// 009/010 intake and case projection: evidence in, candidates
+		// reviewed, business item read back end to end.
+		newInboxCmd(opts),
+		newCandidateCmd(opts),
+		newCaseCmd(opts),
+
 		// 006_content_product.sql: mode B (content, on our own channels) and
 		// mode C (product releases and the campaigns that promote either).
 		newChannelCmd(opts),
