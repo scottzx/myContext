@@ -11,12 +11,19 @@ import { ContractsView } from "./components/ContractsView";
 import { ContentView } from "./components/ContentView";
 import { ProductsView } from "./components/ProductsView";
 import { CompetitionsView } from "./components/CompetitionsView";
+import { InboxView } from "./components/InboxView";
+import { CasesView } from "./components/CasesView";
 
-// Seven business-line entry points (the agreed IA), organised by business
-// line rather than by database table. The tab row sits directly under the
-// title; there is no router — `tab` is plain useState and each view mounts
-// (and fetches) only while it is the active one.
+// 收件箱 and 经营事项 lead: evidence in, business item out. The seven
+// business-line tabs stay exactly as they were — the design defers replacing
+// the default navigation until the new workspace has been used against real
+// data (§12.9), so this adds entry points rather than removing any.
+//
+// There is no router; `tab` is plain useState and each view mounts (and
+// fetches) only while it is the active one.
 const TABS: readonly TabDef[] = [
+  { id: "inbox", label: "收件箱" },
+  { id: "cases", label: "经营事项" },
   { id: "today", label: "今天" },
   { id: "pipeline", label: "咨询交付" },
   { id: "accounts", label: "客户" },
@@ -28,6 +35,9 @@ const TABS: readonly TabDef[] = [
 
 export function App({ ds }: { ds: DataSource }) {
   const [tab, setTab] = useState<string>("today");
+  // Which case the workspace is showing, held here so confirming an inbox item
+  // can hand the user straight to it without a route.
+  const [caseSel, setCaseSel] = useState<{ rootType: string; rootID: string } | null>(null);
   const [caps, setCaps] = useState<Capabilities | null>(null);
   const [capsError, setCapsError] = useState<string | null>(null);
 
@@ -57,6 +67,20 @@ export function App({ ds }: { ds: DataSource }) {
 
       {capsError && <div className="error-banner">{capsError}</div>}
 
+      {tab === "inbox" && (
+        <InboxView
+          ds={ds}
+          ops={ops}
+          canWrite={caps?.write ?? false}
+          onOpenCase={(rootType, rootID) => {
+            setCaseSel({ rootType, rootID });
+            setTab("cases");
+          }}
+        />
+      )}
+      {tab === "cases" && (
+        <CasesView ds={ds} ops={ops} selected={caseSel} onSelect={setCaseSel} />
+      )}
       {tab === "today" && <TodayView ds={ds} />}
       {tab === "pipeline" && <PipelineView ds={ds} ops={ops} />}
       {tab === "accounts" && <AccountsView ds={ds} ops={ops} />}

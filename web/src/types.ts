@@ -392,3 +392,272 @@ export interface PipelineSummary {
   est_amount_total: number;
   weighted_amount_total: number;
 }
+
+// ---------------------------------------------------------------------------
+// 009/010 intake and case projection. Mirrors internal/ops/intake_query.go,
+// internal/ops/intake_propose.go and internal/ops/case_query.go.
+// ---------------------------------------------------------------------------
+
+export type CandidateStatus = "proposed" | "accepted" | "rejected" | "superseded";
+export type CandidateKind = "entity" | "fact" | "relation" | "action";
+
+export interface SourceLocator {
+  schema: number;
+  type: string;
+  start_byte: number;
+  end_byte: number;
+  quote_sha256: string;
+}
+
+export interface CandidateQuote {
+  document_id: string;
+  locator: SourceLocator;
+  quote: string;
+}
+
+// A typed candidate value. `type` picks which of the other fields carries the
+// payload, exactly as the Go Field Registry parses it.
+export interface CandidateValue {
+  type: "text" | "number" | "date" | "timestamp" | "boolean" | "money";
+  text?: string;
+  number?: number;
+  qualifier?: string;
+  iso?: string;
+  precision?: string;
+  rfc3339?: string;
+  boolean?: boolean;
+  amount?: number;
+  currency?: string;
+}
+
+export interface EntityCandidateView {
+  candidate_id: string;
+  group_id: string;
+  entity_type: string;
+  intent: "create" | "update" | "link_existing";
+  target_id?: string;
+  target_version?: number;
+  target_label?: string;
+  status: CandidateStatus;
+}
+
+export interface FactCandidateView {
+  candidate_id: string;
+  entity_group_id: string;
+  field_name: string;
+  value: CandidateValue;
+  confidence?: number;
+  status: CandidateStatus;
+  source: CandidateQuote;
+}
+
+export interface RelationCandidateView {
+  candidate_id: string;
+  from_ref: string;
+  from_type: string;
+  from_key: string;
+  relation_type: string;
+  to_ref: string;
+  to_type: string;
+  to_key: string;
+  attributes?: Record<string, unknown>;
+  status: CandidateStatus;
+  source: CandidateQuote;
+}
+
+export interface ActionCandidateView {
+  candidate_id: string;
+  group_id: string;
+  action_type: "project" | "milestone" | "task";
+  parent_action_group_id?: string;
+  subject_type?: string;
+  subject_key?: string;
+  draft: Record<string, unknown>;
+  status: CandidateStatus;
+  source: CandidateQuote;
+}
+
+export interface InboxItem {
+  id: string;
+  package_id: string;
+  document_id?: string;
+  capture_kind: string;
+  source_ref?: string;
+  title?: string;
+  status: "captured" | "extracting" | "reviewing" | "confirmed" | "archived" | "error";
+  assigned_root_type?: string;
+  assigned_root_id?: string;
+  error_code?: string;
+  error_message?: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  confirmed_at?: string;
+}
+
+export interface InboxDetail {
+  item: InboxItem;
+  original_text: string;
+  active_run_id?: string;
+  entities: EntityCandidateView[];
+  facts: FactCandidateView[];
+  relations: RelationCandidateView[];
+  actions: ActionCandidateView[];
+}
+
+export interface InboxPending {
+  inbox_id: string;
+  title?: string;
+  source_ref?: string;
+  status: InboxItem["status"];
+  capture_kind: string;
+  document_id?: string;
+  package_id: string;
+  assigned_root_type?: string;
+  assigned_root_id?: string;
+  error_code?: string;
+  error_message?: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  active_run_id?: string;
+  running_count: number;
+  undecided_entities: number;
+  undecided_facts: number;
+  undecided_relations: number;
+  undecided_actions: number;
+}
+
+export interface CandidateDecision {
+  candidate_type: CandidateKind;
+  candidate_id: string;
+  decision: "accept" | "reject";
+  reason?: string;
+}
+
+export interface Materialization {
+  candidate_type: string;
+  candidate_id: string;
+  entity_type: string;
+  entity_id: string;
+  action: string;
+}
+
+export interface ConfirmResult {
+  correlation_id: string;
+  root_type: string;
+  root_id: string;
+  materializations: Materialization[];
+  inbox_version: number;
+}
+
+export interface CaptureTextResult {
+  ingestion_id: string;
+  package_id: string;
+  document_id: string;
+  inbox_id: string;
+  canonical_text_sha: string;
+  bytes: number;
+}
+
+export interface CaseIndexRow {
+  root_type: string;
+  root_id: string;
+  title: string;
+  kind: string;
+  stage: string;
+  owner?: string;
+  importance: string;
+  primary_project_id?: string;
+  counterparty_name: string;
+  next_review_at?: string;
+  next_milestone_at?: string;
+  next_milestone_name?: string;
+  next_action_at?: string;
+  last_interaction_at?: string;
+  last_evidence_at?: string;
+  open_task_count: number;
+  overdue_count: number;
+  warning_count: number;
+}
+
+export interface CaseTimelineItem {
+  item_type: string;
+  item_id: string;
+  occurred_at: string;
+  title?: string;
+  summary?: string;
+  actor?: string;
+  document_id?: string;
+  source_count: number;
+  correlation_id?: string;
+}
+
+export interface CaseTimeline {
+  root_type: string;
+  root_id: string;
+  projection_version: number;
+  items: CaseTimelineItem[];
+  next_cursor?: string;
+}
+
+export interface CaseMilestone {
+  milestone_id: string;
+  name: string;
+  target_date: string;
+  status: string;
+  reached_at?: string;
+  open_tasks: number;
+  total_tasks: number;
+}
+
+export interface CaseTask {
+  task_id: string;
+  title: string;
+  status: string;
+  importance: string;
+  planned_date?: string;
+  hard_due_at?: string;
+  milestone_id?: string;
+}
+
+export interface CaseNextActions {
+  root_type: string;
+  root_id: string;
+  projection_version: number;
+  next_milestone_at?: string;
+  next_milestone_name?: string;
+  next_action_at?: string;
+  open_task_count: number;
+  overdue_count: number;
+  milestones: CaseMilestone[];
+  tasks: CaseTask[];
+}
+
+export interface CaseEvidenceRow {
+  entity_type: string;
+  entity_id: string;
+  field_name: string;
+  document_id?: string;
+  document_title?: string;
+  source_locator?: string;
+  origin_type: string;
+  created_at: string;
+  is_current: boolean;
+}
+
+export interface CaseWarning {
+  entity_type: string;
+  entity_id: string;
+  title: string;
+  issue: string;
+  detail: string;
+}
+
+export interface CaseDetail {
+  projection_version: number;
+  index: CaseIndexRow;
+  facts: Record<string, string>;
+  evidence: CaseEvidenceRow[];
+  warnings: CaseWarning[];
+}

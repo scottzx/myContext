@@ -517,3 +517,620 @@ body {
   color: var(--text);
   margin: 0 0 6px;
 }
+
+/* ===========================================================================
+   009/010 — 收件箱审核 and 经营事项工作台.
+   
+   Two layout rules carry the whole responsive contract (design §9):
+   at <=800px everything collapses to one column with no page-level horizontal
+   scroll, and 下一推进节点 moves ABOVE the title so the first screen answers
+   "what next" before it answers "what is this".
+   =========================================================================== */
+
+/* The page's reading width is 1000px, which is right for the existing tables
+   but squeezes the review's middle column until every quote wraps after two
+   words. These two views break out of it without changing it for anyone else. */
+.review,
+.case-ws {
+  width: min(1240px, calc(100vw - 32px));
+  margin-inline: calc((100% - min(1240px, 100vw - 32px)) / 2);
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.toggle {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+}
+
+.primary-btn,
+.ghost-btn {
+  appearance: none;
+  font: inherit;
+  font-size: 13px;
+  border-radius: 6px;
+  padding: 10px 16px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.primary-btn {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+}
+
+.primary-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ghost-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.primary-btn:focus-visible,
+.ghost-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.empty-note {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 12px 0;
+}
+
+.notice-banner {
+  border: 1px solid var(--ok);
+  background: var(--ok-bg);
+  color: var(--ok);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+/* --- capture ------------------------------------------------------------ */
+
+.capture-box {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.capture-box h2 {
+  margin: 0 0 12px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.capture-text {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+}
+
+.capture-fields {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.capture-fields input {
+  flex: 1 1 200px;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  padding: 10px;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.capture-note {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin: 10px 0 0;
+}
+
+/* --- inbox list --------------------------------------------------------- */
+
+.inbox-list {
+  display: grid;
+  gap: 8px;
+}
+
+.inbox-item {
+  appearance: none;
+  text-align: left;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  min-height: 44px;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+}
+
+.inbox-item:hover { border-color: var(--accent); }
+.inbox-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.inbox-title { font-weight: 600; }
+
+.inbox-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.status-chip {
+  border-radius: 999px;
+  padding: 1px 8px;
+  background: var(--stale-bg);
+  color: var(--stale);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.status-reviewing { background: var(--warning-bg); color: var(--warning); }
+.status-error { background: var(--danger-bg); color: var(--danger); }
+
+/* --- review: 原始证据 → 候选事实/关系 → 候选动作 ------------------------ */
+
+.review-head { margin-bottom: 16px; }
+.review-head h2 { margin: 8px 0 4px; font-size: 20px; }
+
+.review-source {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.review-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.review-col {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  min-width: 0;
+}
+
+.review-col h3 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+/* The original is the one thing that must never be reflowed into something
+   it is not, so it stays preformatted and scrolls inside its own box. */
+.evidence-text {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.candidate-group {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+.candidate-group:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+
+.candidate-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.candidate-title { font-weight: 600; font-size: 13px; }
+
+.candidate-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.candidate-row:last-child { border-bottom: none; }
+
+.candidate-main { min-width: 0; flex: 1 1 auto; }
+
+.field-name {
+  display: inline-block;
+  min-width: 92px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.field-value { font-size: 13px; overflow-wrap: anywhere; }
+
+.candidate-meta,
+.candidate-quote {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.candidate-quote {
+  border-left: 2px solid var(--border);
+  padding-left: 8px;
+  font-family: var(--font-mono);
+}
+
+.verdict { display: inline-flex; gap: 4px; flex: 0 0 auto; }
+
+.verdict-btn {
+  appearance: none;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  min-height: 44px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.verdict-btn.on { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
+.verdict-btn.off { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
+.verdict-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Sticky rather than fixed: it stays reachable while scrolling but returns to
+   the document flow, so an on-screen keyboard pushes it instead of covering it. */
+.confirm-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.confirm-summary { font-size: 13px; color: var(--text-muted); }
+.confirm-actions { display: flex; gap: 8px; }
+
+/* --- case list ---------------------------------------------------------- */
+
+.case-list { display: grid; gap: 10px; }
+
+.case-card {
+  appearance: none;
+  text-align: left;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 5px;
+}
+
+.case-card:hover { border-color: var(--accent); }
+.case-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.case-card-title { font-weight: 600; font-size: 15px; }
+.case-card-sub,
+.case-card-next { font-size: 12px; color: var(--text-muted); }
+
+.case-card-flags {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.warn-chip { color: var(--warning); }
+
+/* --- case workspace ----------------------------------------------------- */
+
+.case-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 16px;
+}
+
+.case-ident { min-width: 0; }
+.case-title { font-size: 22px; margin: 6px 0; }
+
+.case-chips { display: flex; gap: 7px; flex-wrap: wrap; }
+
+.chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.case-next {
+  flex: 0 0 300px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.case-next b { display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-muted); }
+.case-next-main { font-size: 15px; font-weight: 600; }
+.case-next-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+.case-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 18px;
+  margin-top: 18px;
+  align-items: start;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 0;
+  margin-bottom: 16px;
+}
+
+.panel h3 {
+  margin: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.panel-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.panel-tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 12px 14px;
+  min-height: 44px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.panel-tab.sel { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.panel-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.tl { list-style: none; margin: 0; padding: 4px 14px; }
+
+.tl-item {
+  display: grid;
+  grid-template-columns: 96px 16px minmax(0, 1fr);
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.tl-item:last-child { border-bottom: none; }
+
+.tl-when { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
+
+.tl-dot {
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  margin-top: 5px;
+}
+
+.tl-body { min-width: 0; }
+.tl-title { font-weight: 600; overflow-wrap: anywhere; }
+.tl-kind { color: var(--text-muted); font-weight: 400; margin-right: 6px; font-size: 12px; }
+.tl-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; overflow-wrap: anywhere; }
+
+.evidence-list { list-style: none; margin: 0; padding: 8px 14px; }
+
+.evidence-list li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.evidence-list li:last-child { border-bottom: none; }
+
+.evidence-mark {
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 1px 8px;
+  background: var(--stale-bg);
+  color: var(--stale);
+}
+
+.evidence-mark.current { background: var(--ok-bg); color: var(--ok); }
+.evidence-doc { font-size: 12px; color: var(--text-muted); overflow-wrap: anywhere; }
+
+.fact-list { margin: 0; padding: 8px 14px; }
+
+.fact-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.fact-row:last-child { border-bottom: none; }
+.fact-row dt { color: var(--text-muted); font-size: 12px; }
+.fact-row dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+
+.task-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  align-items: start;
+}
+
+.task-row:last-child { border-bottom: none; }
+
+.task-box {
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--text-muted);
+  border-radius: 3px;
+  margin-top: 3px;
+}
+
+.task-title { overflow-wrap: anywhere; }
+.task-imp { font-size: 12px; color: var(--text-muted); }
+
+.mile { padding: 11px 14px; border-bottom: 1px solid var(--border); }
+.mile:last-child { border-bottom: none; }
+
+.bar { height: 6px; border: 1px solid var(--border); border-radius: 3px; margin-top: 7px; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+
+.summary-grid { display: grid; grid-template-columns: 1fr 1fr; }
+
+.summary-grid .cell {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.summary-grid .cell:nth-child(odd) { border-right: 1px solid var(--border); }
+.summary-grid .cell b { display: block; font-size: 14px; color: var(--text); margin-top: 3px; }
+
+.warn {
+  margin: 10px 14px;
+  border: 1px solid var(--warning);
+  background: var(--warning-bg);
+  color: var(--warning);
+  border-radius: 6px;
+  padding: 9px;
+  font-size: 12px;
+}
+
+/* --- narrow screens (design §9) ----------------------------------------- */
+
+@media (max-width: 800px) {
+  #root { padding: 16px 12px 40px; }
+
+  /* Back to the page width: at this size there is nothing to break out of. */
+  .review,
+  .case-ws { width: auto; margin-inline: 0; }
+
+  /* Every touch target reaches 44px (design §9). The desktop sizes are left
+     alone: this is a finger-vs-pointer rule, not a taste one. */
+  .tab-btn,
+  .back-btn,
+  .search-box input[type="search"] {
+    min-height: 44px;
+  }
+
+  /* One column, and the review's three semantic columns become three stacked
+     sections in the same order: 原始证据 → 候选事实/关系 → 候选动作. */
+  .review-columns,
+  .case-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    /* The grid layouts above set align-items:start, which on a COLUMN flex
+       container controls width — leaving every panel shrunk to its text. */
+    align-items: stretch;
+  }
+
+  .evidence-text { max-height: 40vh; }
+
+  /* 下一推进节点 before the title: the first screen answers "what next". */
+  .case-top { flex-direction: column; gap: 12px; padding-bottom: 12px; }
+  .case-next { flex: none; order: -1; }
+  .case-title { font-size: 19px; line-height: 1.25; }
+
+  /* Chips scroll inside themselves rather than widening the page. */
+  .case-chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 3px; }
+  .chip { flex: 0 0 auto; white-space: nowrap; }
+
+  .tl-item { grid-template-columns: 74px 12px minmax(0, 1fr); gap: 6px; }
+
+  .confirm-bar { flex-direction: column; align-items: stretch; }
+  .confirm-actions { display: flex; }
+  .confirm-actions .primary-btn { flex: 1 1 auto; }
+}
+
+/* Only a phone is narrow enough that a fact and its accept/reject pair cannot
+   share a line. A tablet has the room, and stacking there would waste half the
+   width on nothing — so this is a separate, narrower breakpoint rather than
+   part of the single-column rule above. */
+@media (max-width: 560px) {
+  .candidate-row { flex-direction: column; align-items: stretch; }
+  .candidate-main { flex: 0 0 auto; }
+  .verdict { justify-content: flex-end; }
+}
