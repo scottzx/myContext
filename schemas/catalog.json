@@ -691,6 +691,13 @@
       ]
     },
     {
+      "name": "candidate.revise",
+      "invoke": "mycontext candidate revise",
+      "summary": "Replace one candidate with a corrected version",
+      "long": "Reads {candidate_type, candidate_id, replacement} from --input. The\nreplacement is the FULL candidate DTO, not a patch: a corrected claim\nstill has to say which bytes it came from.",
+      "write": true
+    },
+    {
       "name": "capacity.set",
       "invoke": "mycontext capacity set <YYYY-MM-DD> <minutes> [flags]",
       "summary": "Declare how many minutes a day actually has",
@@ -710,6 +717,112 @@
           "name": "--note",
           "type": "string",
           "description": "why"
+        }
+      ]
+    },
+    {
+      "name": "case.get",
+      "invoke": "mycontext case show <root-id> [flags]",
+      "summary": "Show one item's header, confirmed facts and warnings",
+      "write": false,
+      "arguments": [
+        {
+          "name": "root-id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--root-type",
+          "type": "string",
+          "description": "which kind of root this id is",
+          "default": "opportunity"
+        }
+      ]
+    },
+    {
+      "name": "case.list",
+      "invoke": "mycontext case list [flags]",
+      "summary": "List business items, most urgent first",
+      "write": false,
+      "flags": [
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum items",
+          "default": "50"
+        },
+        {
+          "name": "--open",
+          "type": "bool",
+          "description": "hide won and lost items",
+          "default": "false"
+        },
+        {
+          "name": "--root-type",
+          "type": "string",
+          "description": "opportunity"
+        },
+        {
+          "name": "--search",
+          "type": "string",
+          "description": "match the title or the counterparty"
+        },
+        {
+          "name": "--stage",
+          "type": "string",
+          "description": "filter by stage"
+        }
+      ]
+    },
+    {
+      "name": "case.next-actions",
+      "invoke": "mycontext case next <root-id> [flags]",
+      "summary": "Show the next node: milestones, open tasks, what is due",
+      "write": false,
+      "arguments": [
+        {
+          "name": "root-id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--root-type",
+          "type": "string",
+          "description": "which kind of root this id is",
+          "default": "opportunity"
+        }
+      ]
+    },
+    {
+      "name": "case.timeline",
+      "invoke": "mycontext case timeline <root-id> [flags]",
+      "summary": "Show what happened, newest first",
+      "write": false,
+      "arguments": [
+        {
+          "name": "root-id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--cursor",
+          "type": "string",
+          "description": "continue from a previous page"
+        },
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum items",
+          "default": "50"
+        },
+        {
+          "name": "--root-type",
+          "type": "string",
+          "description": "which kind of root this id is",
+          "default": "opportunity"
         }
       ]
     },
@@ -1776,6 +1889,84 @@
           "required": true
         }
       ]
+    },
+    {
+      "name": "inbox.archive",
+      "invoke": "mycontext inbox archive <inbox-id> [flags]",
+      "summary": "Drop an item from the queue without materialising anything",
+      "long": "Archives the queue ITEM only. The sealed capture package and its\ndocument stay exactly as they are: deciding not to file something is\nnot the same as deciding it never happened.",
+      "write": true,
+      "arguments": [
+        {
+          "name": "inbox-id",
+          "required": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "--expected-version",
+          "type": "int64",
+          "description": "version read before archiving",
+          "default": "0"
+        }
+      ]
+    },
+    {
+      "name": "inbox.capture-text",
+      "invoke": "mycontext inbox capture-text [flags]",
+      "summary": "Seal pasted text into the Library and queue it for review",
+      "long": "Normalises the text to UTF-8 with LF endings, seals it as an immutable\ncapture package, then registers a document and one inbox item. The URL\nin --source is recorded as provenance only; nothing is fetched.",
+      "write": true,
+      "flags": [
+        {
+          "name": "--source",
+          "type": "string",
+          "description": "where it came from, recorded verbatim"
+        },
+        {
+          "name": "--text-file",
+          "type": "string",
+          "description": "read the text from a file, or - for stdin"
+        },
+        {
+          "name": "--title",
+          "type": "string",
+          "description": "what this is (defaults to the first line)"
+        }
+      ]
+    },
+    {
+      "name": "inbox.get",
+      "invoke": "mycontext inbox show <inbox-id>",
+      "summary": "Show one item with its original text and every candidate",
+      "write": false,
+      "arguments": [
+        {
+          "name": "inbox-id",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "inbox.list",
+      "invoke": "mycontext inbox list [flags]",
+      "summary": "Show everything still waiting on a decision",
+      "write": false,
+      "flags": [
+        {
+          "name": "--limit",
+          "type": "int",
+          "description": "maximum items",
+          "default": "50"
+        }
+      ]
+    },
+    {
+      "name": "inbox.propose",
+      "invoke": "mycontext inbox propose",
+      "summary": "Submit candidate facts, relations and actions for an item",
+      "long": "Reads a proposal payload from --input. Candidates are validated against\nthe field, action and relation registries and every source locator is\nre-hashed against the sealed original before anything is stored.",
+      "write": true
     },
     {
       "name": "initiative.create",
@@ -3908,7 +4099,7 @@
       "name": "ui.serve",
       "invoke": "mycontext ui serve [flags]",
       "summary": "Serve the read-only dashboard on 127.0.0.1 until Ctrl-C",
-      "long": "Binds a random port on 127.0.0.1 only (never the network) and serves\nthe embedded static frontend plus a single read-only invoke endpoint.\nThis is not a daemon: it runs only while this command runs, and stops\non Ctrl-C or after --idle-timeout with no requests.",
+      "long": "Binds a random port on 127.0.0.1 only (never the network) and serves\nthe embedded static frontend plus one whitelisted invoke endpoint.\nThis is not a daemon: it runs only while this command runs, and stops\non Ctrl-C or after --idle-timeout with no requests.\n\nConfirming an inbox item is only possible here: it needs a single-use\ngrant bound to this session, which no other entry point can issue.",
       "write": false,
       "flags": [
         {
@@ -3922,6 +4113,12 @@
           "type": "int",
           "description": "fixed port (default: random)",
           "default": "0"
+        },
+        {
+          "name": "--read-only",
+          "type": "bool",
+          "description": "serve without the capture and confirm operations",
+          "default": "false"
         }
       ]
     }
