@@ -21,6 +21,14 @@ const today = "2026-08-21"
 
 func newTestStore(t *testing.T) *ops.Store {
 	t.Helper()
+	return newTestStoreWithClock(t, system.FixedClock{At: fixedNow})
+}
+
+// newTestStoreWithClock is newTestStore for the few tests that need time to
+// move - document versions, for one, are ordered by created_at, and a frozen
+// clock makes two versions indistinguishable in a way real use never is.
+func newTestStoreWithClock(t *testing.T, clock system.Clock) *ops.Store {
+	t.Helper()
 	// The deterministic views compare against the process local day, so pin
 	// the timezone the same way the CLI does.
 	original := time.Local
@@ -41,7 +49,7 @@ func newTestStore(t *testing.T) *ops.Store {
 	if _, err := sqlite.Migrate(context.Background(), db, migrations, "test"); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	return ops.NewStore(db, system.FixedClock{At: fixedNow})
+	return ops.NewStore(db, clock)
 }
 
 func writeCtx(requestID string) ops.WriteContext {

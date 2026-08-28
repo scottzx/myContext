@@ -365,18 +365,27 @@ export interface ReceivableAging {
 }
 
 // internal/ops/search.go DocumentHit / DocumentSearchResult.
+//
+// is_current and superseded_by are why a hit is not just a match: every
+// version of a lineage matches the same words, and a replaced conclusion
+// looks exactly like a live one until the result says otherwise.
 export interface DocumentHit {
   doc_id: string;
   title: string;
   kind: string;
   rel_path?: string;
   snippet?: string;
+  is_current: boolean;
+  superseded_by?: string;
+  review_at?: string;
+  review_due?: boolean;
 }
 
 export interface DocumentSearchResult {
   query: string;
   mode: "index" | "scan";
   hits: DocumentHit[];
+  superseded_hits: number;
 }
 
 // Mirrors ops.PipelineSummary (internal/ops/biz_query.go), which reads the

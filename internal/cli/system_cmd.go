@@ -268,17 +268,19 @@ func newDoctorCmd(opts *GlobalOptions) *cobra.Command {
 					add("biz.data_quality", "pass", "no issues")
 				}
 
-				// Search degrades quietly: a document with no indexed body is
-				// still findable by title and metadata, just not by content.
-				// That is worth reporting because nothing else surfaces it.
-				if missing, err := store.UnindexedDocuments(ctx); err != nil {
+				// Search degrades quietly, in two ways nothing else surfaces: a
+				// document with no indexed body is findable by title and
+				// metadata but not by content, and a document whose original
+				// file changed after indexing is findable by text that is no
+				// longer its own.
+				if queue, err := store.DocumentsNeedingIndex(ctx); err != nil {
 					add("biz.search_index", "warn", err.Error())
-				} else if len(missing) > 0 {
+				} else if len(queue) > 0 {
 					add("biz.search_index", "repairable",
-						fmt.Sprintf("%d document(s) have an original file but no indexed text; "+
-							"run `mycontext doc reindex`", len(missing)))
+						fmt.Sprintf("%d document(s) need indexing (%s); "+
+							"run `mycontext doc reindex`", len(queue), indexQueueSummary(queue)))
 				} else {
-					add("biz.search_index", "pass", "every document body is indexed")
+					add("biz.search_index", "pass", "every document body is indexed and current")
 				}
 
 				// Reconcile the Library's journal against disk (§15.2). This can

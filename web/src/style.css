@@ -428,6 +428,23 @@ tr.row-link:focus-visible {
   margin-top: 2px;
 }
 
+/* A superseded hit is dimmed, never hidden: it is still evidence of what was
+   decided when, and the list is the only place that says so. Dimming alone
+   would be a colour-only signal, hence the flag beside it. */
+.search-results li.is-superseded {
+  color: var(--text-muted);
+}
+
+.search-flag {
+  border: 1px solid var(--warning);
+  border-radius: 999px;
+  padding: 0 6px;
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--warning);
+  white-space: nowrap;
+}
+
 .product-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

@@ -1818,15 +1818,15 @@
     {
       "name": "doc.reindex",
       "invoke": "mycontext doc reindex",
-      "summary": "List documents whose text is not in the search index",
-      "long": "List documents that have an original file but no indexed text.\n\nThey are still findable by title and metadata, just not by content. Re-indexing needs the file's text, so this reports what to feed back through `doc index` rather than reading the library itself.",
+      "summary": "List documents whose indexed text is missing or out of date",
+      "long": "List documents whose search index needs work, and why.\n\n  not_indexed         an original file exists, its text was never supplied.\n                      Findable by title and metadata, not by content.\n  content_changed     the original file changed after indexing, so search\n                      is serving text that is no longer the document's.\n  provenance_unknown  indexed text with no recorded hash behind it. It may\n                      well be current; nothing recorded can establish that.\n\nRe-indexing needs the file's text, so this reports what to feed back through `doc index` rather than reading the library itself.",
       "write": false
     },
     {
       "name": "doc.search",
       "invoke": "mycontext doc search <query> [flags]",
       "summary": "Find documents by content",
-      "long": "Find documents by content.\n\nQueries of three characters or more use the FTS5 trigram index. Shorter queries cannot form a trigram, so they fall back to a slower scan - which is how a two-character name like 杨总 is found at all. The result reports which path answered.",
+      "long": "Find documents by content.\n\nQueries of three characters or more use the FTS5 trigram index. Shorter queries cannot form a trigram, so they fall back to a slower scan - which is how a two-character name like 杨总 is found at all. The result reports which path answered.\n\nEvery version of a document matches, not just the newest. Superseded hits are marked and name the version to read instead; they are not hidden, because a replaced conclusion is still evidence of what was decided when.",
       "write": false,
       "arguments": [
         {

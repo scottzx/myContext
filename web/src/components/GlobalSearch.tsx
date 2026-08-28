@@ -63,9 +63,14 @@ export function GlobalSearch({ ds, available }: { ds: DataSource; available: boo
           {!loading && !error && result && result.hits.length > 0 && (
             <ul>
               {result.hits.map((h) => (
-                <li key={h.doc_id}>
+                <li key={h.doc_id} className={h.is_current ? undefined : "is-superseded"}>
                   <span className="kind-tag">{h.kind}</span>
                   {h.title}
+                  {/* A replaced version stays in the list — it is still
+                      evidence of what was decided when — but it must never
+                      look like the current answer. */}
+                  {!h.is_current && <span className="search-flag">superseded</span>}
+                  {h.review_due && <span className="search-flag">review due {h.review_at}</span>}
                   {h.snippet && <div className="search-snippet">{h.snippet}</div>}
                 </li>
               ))}

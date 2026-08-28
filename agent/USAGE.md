@@ -117,6 +117,27 @@ mycontext --format json --request-id <ulid> \
 
 任务离开今日看板，到日期后出现在 `ops status` 的待复查里。
 
+### 检索资料（命中不等于当前结论）
+
+```bash
+mycontext --format json doc search 数据标注
+```
+
+同一份资料的每个版本都会命中同样的词，所以**结果里的 `is_current` 才是"这是不是
+现在的说法"**，不要只看排名：
+
+- `is_current: false` → 这条已被取代，`superseded_by` 是该读的那一版。可以引用它
+  说明"当时是怎么定的"，但不能拿它回答"现在是什么"。
+- `review_due: true` → 它仍是当前版本，但自己声明的复查日期(`review_at`)已经到了。
+  据此回答时要说明这一点。
+- 结果头部的 `superseded_hits` 是这次命中里有多少条已被取代。
+
+旧版本不会被隐藏——被推翻的结论也是"当时决定了什么"的证据。分辨它们是你的责任。
+
+`mode` 说明这次是索引还是回退扫描（两字查询无法构成 trigram，见退出说明）。
+若 `doc reindex` 报出 `content_changed`，说明索引里的正文已经不是该文件的内容，
+此时的检索结果不可信，应先告诉用户去重建索引，而不是照着答。
+
 ### 长文本、中文、Markdown 走文件
 
 不要把长内容塞进 shell 参数，引号会毁掉它：

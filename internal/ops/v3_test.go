@@ -604,12 +604,15 @@ func TestSearchFindsChineseByBothPaths(t *testing.T) {
 	docID := added.Data.(*ops.Document).ID
 
 	// Until the body is indexed it is a maintenance item, not an error.
-	missing, err := store.UnindexedDocuments(ctx)
+	missing, err := store.DocumentsNeedingIndex(ctx)
 	if err != nil {
-		t.Fatalf("unindexed: %v", err)
+		t.Fatalf("index queue: %v", err)
 	}
 	if len(missing) != 1 || missing[0].DocID != docID {
 		t.Fatalf("a document with an original file but no body should be queued, got %+v", missing)
+	}
+	if missing[0].Reason != ops.IndexReasonNotIndexed {
+		t.Fatalf("reason = %q, want %q", missing[0].Reason, ops.IndexReasonNotIndexed)
 	}
 
 	body := "本次会议由杨总主持，确认了云深处 AI 转型的下一步，" +

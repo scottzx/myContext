@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -227,7 +228,10 @@ func docSearchCmd(opts *GlobalOptions) *cobra.Command {
 			"Queries of three characters or more use the FTS5 trigram index. Shorter " +
 			"queries cannot form a trigram, so they fall back to a slower scan - which " +
 			"is how a two-character name like 杨总 is found at all. The result reports " +
-			"which path answered.",
+			"which path answered.\n\n" +
+			"Every version of a document matches, not just the newest. Superseded hits " +
+			"are marked and name the version to read instead; they are not hidden, " +
+			"because a replaced conclusion is still evidence of what was decided when.",
 		Args: cobra.ExactArgs(1),
 	}
 	cmd.Flags().IntVar(&limit, "limit", 0, "maximum hits")
@@ -253,9 +257,22 @@ func docSearchCmd(opts *GlobalOptions) *cobra.Command {
 				fmt.Fprintf(w, "no documents match %q (%s)\n", r.Query, r.Mode)
 				return nil
 			}
-			fmt.Fprintf(w, "%d hit(s) for %q via %s\n", len(r.Hits), r.Query, r.Mode)
+			fmt.Fprintf(w, "%d hit(s) for %q via %s", len(r.Hits), r.Query, r.Mode)
+			if r.SupersededHits > 0 {
+				fmt.Fprintf(w, "; %d superseded", r.SupersededHits)
+			}
+			fmt.Fprintln(w)
 			for _, h := range r.Hits {
 				fmt.Fprintf(w, "  %-24s  %-14s  %s\n", h.DocID, h.Kind, h.Title)
+				// The two ways a hit can be out of date, spelled out rather
+				// than left to a flag the eye skips: replaced by a newer
+				// version, or past the date it asked to be re-examined.
+				if !h.IsCurrent {
+					fmt.Fprintf(w, "      superseded -> read %s instead\n", h.SupersededBy)
+				}
+				if h.ReviewDue {
+					fmt.Fprintf(w, "      due for review since %s\n", h.ReviewAt)
+				}
 				if h.Snippet != "" {
 					fmt.Fprintf(w, "      %s\n", h.Snippet)
 				}
@@ -308,9 +325,14 @@ func docIndexCmd(opts *GlobalOptions) *cobra.Command {
 func docReindexCmd(opts *GlobalOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "reindex",
-		Short: "List documents whose text is not in the search index",
-		Long: "List documents that have an original file but no indexed text.\n\n" +
-			"They are still findable by title and metadata, just not by content. " +
+		Short: "List documents whose indexed text is missing or out of date",
+		Long: "List documents whose search index needs work, and why.\n\n" +
+			"  not_indexed         an original file exists, its text was never supplied.\n" +
+			"                      Findable by title and metadata, not by content.\n" +
+			"  content_changed     the original file changed after indexing, so search\n" +
+			"                      is serving text that is no longer the document's.\n" +
+			"  provenance_unknown  indexed text with no recorded hash behind it. It may\n" +
+			"                      well be current; nothing recorded can establish that.\n\n" +
 			"Re-indexing needs the file's text, so this reports what to feed back " +
 			"through `doc index` rather than reading the library itself.",
 	}
@@ -322,22 +344,48 @@ func docReindexCmd(opts *GlobalOptions) *cobra.Command {
 		}
 		ctx, cancel := rt.Context()
 		defer cancel()
-		missing, err := store.UnindexedDocuments(ctx)
+		queue, err := store.DocumentsNeedingIndex(ctx)
 		if err != nil {
 			return rt.EmitError(command, err)
 		}
-		return rt.EmitData(command, missing, func(w io.Writer, data any) error {
-			list, _ := data.([]ops.DocumentHit)
+		return rt.EmitData(command, queue, func(w io.Writer, data any) error {
+			list, _ := data.([]ops.IndexQueueEntry)
 			if len(list) == 0 {
-				fmt.Fprintln(w, "every document body is indexed")
+				fmt.Fprintln(w, "every document body is indexed and current")
 				return nil
 			}
-			fmt.Fprintf(w, "%d document(s) need indexing:\n", len(list))
-			for _, h := range list {
-				fmt.Fprintf(w, "  %-24s  %-40s  %s\n", h.DocID, h.Title, h.RelPath)
+			fmt.Fprintf(w, "%d document(s) need indexing (%s):\n", len(list), indexQueueSummary(list))
+			for _, e := range list {
+				fmt.Fprintf(w, "  %-20s  %-24s  %-40s  %s\n", e.Reason, e.DocID, e.Title, e.RelPath)
 			}
 			return nil
 		})
 	})
 	return cmd
+}
+
+// indexQueueSummary counts the queue by reason, in a fixed order so repeated
+// runs read the same way. Unknown reasons are not swallowed: a value the CLI
+// does not recognise still gets counted under its own name.
+func indexQueueSummary(queue []ops.IndexQueueEntry) string {
+	counts := map[string]int{}
+	var order []string
+	for _, r := range []string{ops.IndexReasonNotIndexed, ops.IndexReasonContentChanged,
+		ops.IndexReasonProvenanceUnknown} {
+		counts[r] = 0
+		order = append(order, r)
+	}
+	for _, e := range queue {
+		if _, known := counts[e.Reason]; !known {
+			order = append(order, e.Reason)
+		}
+		counts[e.Reason]++
+	}
+	var parts []string
+	for _, r := range order {
+		if counts[r] > 0 {
+			parts = append(parts, fmt.Sprintf("%d %s", counts[r], r))
+		}
+	}
+	return strings.Join(parts, ", ")
 }
